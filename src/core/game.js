@@ -61,7 +61,7 @@ export function update(dt) {
   if (a.inv) { showInventory(); clearActions(); return; }
   if (a.build && !G.build) { showCraft(); clearActions(); return; }
   if (a.light) G.player.flash = !G.player.flash;
-  if (G.build) updateBuild(); else if (a.interact) interact();
+  if (G.build) updateBuild(); else if (a.interact && !G.player.mounted) interact();
   G.clock += dt;
   updateTime(dt);
   updateSurvival(dt);

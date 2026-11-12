@@ -8,11 +8,11 @@ import { emitNoise } from '../systems/noise.js';
 import { blood, burst, particle } from './fx.js';
 import { sfx } from '../audio/audio.js';
 import { hurtPlayer } from './player.js';
-import { damageStruct } from '../building/structures.js';
+import { damageStruct, ST } from '../building/structures.js';
 
 export const Z = { list: [], count: 0, ambient: 0, animals: 0, migA: 0, spawnT: 0, flowT: 0, hordeT: 0, onKill: null };
 for (let i = 0; i < CFG.MAX_ZOMBIES; i++) Z.list.push({ alive: false, x: 0, y: 0, ox: 0, oy: 0, r: 9, type: 'walker', def: ZT.walker, hp: 1, maxHp: 1, state: 0, tx: 0, ty: 0,
-  think: 0, atk: 0, ang: 0, slowT: 0, slowF: 1, holdT: 0, burnT: 0, stunT: 0, frost: false, horde: false, flash: 0, wanderT: 0, wx: 0, wy: 0, kx: 0, ky: 0, lost: 0, scream: 0, seen: false });
+  think: 0, atk: 0, ang: 0, slowT: 0, slowF: 1, holdT: 0, burnT: 0, stunT: 0, frost: false, horde: false, flash: 0, wanderT: 0, wx: 0, wy: 0, kx: 0, ky: 0, lost: 0, scream: 0, seen: false, tgt: null, tgtT: 0 });
 const dir = { x: 0, y: 0 };
 
 export function clearZombies() { for (const z of Z.list) z.alive = false; Z.count = 0; Z.ambient = 0; Z.spawnT = 0; Z.hordeT = 0; }
@@ -27,7 +27,7 @@ export function spawnZombie(type, x, y, horde) {
   if (d.animal) z.maxHp = z.hp = d.hp;
   z.frost = !d.animal && e.season === 3 && Math.random() < zc.frostChance; if (z.frost) z.maxHp = z.hp *= 1.4;
   z.state = horde ? 2 : 0; z.horde = !!horde; z.think = Math.random() * 0.4; z.atk = 0.5; z.ang = Math.random() * 6.283;
-  z.slowT = z.holdT = z.burnT = z.stunT = z.flash = 0; z.kx = z.ky = 0; z.lost = 0; z.scream = 0; z.wanderT = 0; z.seen = false;
+  z.slowT = z.holdT = z.burnT = z.stunT = z.flash = 0; z.kx = z.ky = 0; z.lost = 0; z.scream = 0; z.wanderT = 0; z.seen = false; z.tgt = null; z.tgtT = 0;
   Z.count++; return z;
 }
 
@@ -135,6 +135,10 @@ export function updateZombies(dt) {
         if (z.def.scream && z.scream <= 0) { z.scream = 12; sfx('scream', 1, z.x, z.y); emitNoise(z.x, z.y, z.def.scream); burst(z.x, z.y, 8, '#fff', 120, 0.4, 2); }
       } else if (z.state === 2 && !z.horde) { z.lost += 0.35; if (z.lost > 4) { z.state = 1; z.tx = p.x; z.ty = p.y; } }
       if (z.horde && !e.bloodMoon) z.horde = false;
+      // Türme gezielt angreifen
+      if (z.state === 2 && !z.tgt && ST.turrets.length && Math.random() < 0.3) {
+        for (let k = 0; k < ST.turrets.length; k++) { const t = ST.turrets[k]; if (Math.abs(t.x - z.x) < 90 && Math.abs(t.y - z.y) < 90) { z.tgt = t; z.tgtT = 5; break; } }
+      }
     }
     if (z.scream > 0) z.scream -= dt;
     // Knockback
@@ -142,7 +146,9 @@ export function updateZombies(dt) {
     if (z.stunT > 0) { z.stunT -= dt; continue; }
     // Zielrichtung
     let vx = 0, vy = 0, sp = z.def.sp * spMul;
-    if (z.state === 2) {
+    if (z.tgt) { z.tgtT -= dt; if (z.tgt.dead || z.tgtT <= 0 || d < 30) z.tgt = null; }
+    if (z.tgt) { const tx = z.tgt.x - z.x, ty = z.tgt.y - z.y, td = Math.hypot(tx, ty) || 1; vx = tx / td; vy = ty / td; }
+    else if (z.state === 2) {
       if (d < 44 || !flowDir(z.x, z.y, dir)) { dir.x = dxp / (d || 1); dir.y = dyp / (d || 1); }
       vx = dir.x; vy = dir.y;
     } else if (z.state === 1) {

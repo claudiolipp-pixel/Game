@@ -28,6 +28,7 @@ export function updatePlayer(dt) {
   p.sprinting = input.sprint && p.moving && p.stamina > 1;
   if (p.sprinting) { p.stamina -= P.staminaDrain * dt; if (p.stamina <= 1) input.sprintToggle = false; }
   else p.stamina = Math.min(100, p.stamina + P.staminaRegen * dt * (p.moving ? 0.6 : 1));
+  if (p.mounted && Math.hypot(p.mounted.x - p.x, p.mounted.y - p.y) > 70) p.mounted = null;
   if (!p.moving) return;
   let sp = p.sprinting ? P.sprint : p.sneaking ? P.sneak : P.walk * Math.max(0.6, mm);
   sp *= p.speedMul;

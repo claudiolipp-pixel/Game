@@ -7,6 +7,7 @@ import { initRenderer, render } from './render/renderer.js';
 import { update } from './core/game.js';
 import { showMainMenu } from './ui/menus.js';
 import { G } from './state.js';
+import './building/turrets.js';
 
 loadSettings();
 initSprites(); initHeads();
