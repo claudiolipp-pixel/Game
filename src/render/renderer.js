@@ -4,7 +4,7 @@ import { CFG } from '../config.js';
 import { settings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
 import { SPR } from './sprites.js';
-import { drawGround } from '../world/world.js';
+import { drawGround, drawRoofs, T } from '../world/world.js';
 
 export const view = { w: 1, h: 1, scale: 1, camX: 0, camY: 0, tx: 0, ty: 0, css: 1, px: 0, py: 0 };
 let canvas, ctx;
@@ -49,6 +49,7 @@ export function render(alpha) {
   drawSprite(SPR.player, view.px, view.py, p.ang, 1);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
+  drawRoofs(ctx, view, Math.floor(p.x / T), Math.floor(p.y / T));
   drawSticks();
 }
 

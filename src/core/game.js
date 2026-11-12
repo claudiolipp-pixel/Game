@@ -4,7 +4,7 @@ import { CFG } from '../config.js';
 import { settings } from './save.js';
 import { input, pollInput, clearActions, resetSticks } from './input.js';
 import { newPlayer, updatePlayer } from '../entities/player.js';
-import { initWorld, updateWorld } from '../world/world.js';
+import { initWorld, updateWorld, findSpawn } from '../world/world.js';
 import { view, playerScreen } from '../render/renderer.js';
 
 const ps = { x: 0, y: 0 };
@@ -16,7 +16,8 @@ export function newGame(seed) {
   G.stats = { kills: 0, trapKills: 0, cause: '' };
   G.bp = {}; G.build = null; G.tick = 0;
   initWorld(G.seed);
-  G.player = newPlayer(0, 0);
+  const sp = findSpawn();
+  G.player = newPlayer(sp.x, sp.y);
   view.camX = G.player.x; view.camY = G.player.y;
   G.mode = 'play'; setPaused(false);
 }

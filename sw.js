@@ -1,5 +1,5 @@
 // Service Worker (cache-first) – generiert von tools/make-sw.mjs
-const CACHE = 'letzter-winter-8342d3c600';
+const CACHE = 'letzter-winter-70b28929b9';
 const FILES = [
  "./",
  "index.html",
@@ -9,6 +9,7 @@ const FILES = [
  "src/core/game.js",
  "src/core/input.js",
  "src/core/loop.js",
+ "src/core/rng.js",
  "src/core/save.js",
  "src/entities/player.js",
  "src/main.js",
