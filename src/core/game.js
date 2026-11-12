@@ -12,7 +12,9 @@ import { updateFx, clearFx } from '../entities/fx.js';
 import { updateCombat } from '../systems/combat.js';
 import { newInventory, addItem, makeItem, updateDrops } from '../systems/inventory.js';
 import { updateHud } from '../ui/hud.js';
-import { showGameOver, showInventory, showPause, showMap } from '../ui/menus.js';
+import { showGameOver, showInventory, showPause, showMap, showCraft } from '../ui/menus.js';
+import { updateStructs, clearStructs } from '../building/structures.js';
+import { updateBuild, stopBuild } from '../building/build.js';
 import { updateTime, resetTime } from '../world/time.js';
 import { updateSurvival } from '../systems/survival.js';
 import { interact, rollLoot } from '../systems/interact.js';
@@ -32,7 +34,7 @@ export function newGame(seed) {
   G.clock = CFG.START_HOUR / 24 * G.dayLen;
   G.stats = { kills: 0, trapKills: 0, cause: '' };
   G.bp = {}; G.build = null; G.tick = 0;
-  initWorld(G.seed); resetTime(); G.env.bloodMoon = false; resetWeather(); clearTracks();
+  initWorld(G.seed); clearStructs(); stopBuild(); G.alarmT = 0; resetTime(); G.env.bloodMoon = false; resetWeather(); clearTracks();
   updateTime(0);
   clearZombies(); clearShots(); clearFx(); G.drops.length = 0; G.flashT = 0; G.shake = 0;
   G.inv = newInventory();
@@ -57,8 +59,9 @@ export function update(dt) {
   const a = input.act;
   if (a.pause) { showPause(); clearActions(); return; }
   if (a.inv) { showInventory(); clearActions(); return; }
+  if (a.build && !G.build) { showCraft(); clearActions(); return; }
   if (a.light) G.player.flash = !G.player.flash;
-  if (a.interact && !G.build) interact();
+  if (G.build) updateBuild(); else if (a.interact) interact();
   G.clock += dt;
   updateTime(dt);
   updateSurvival(dt);
@@ -68,6 +71,7 @@ export function update(dt) {
   updateWorld();
   updateCombat(dt);
   updateZombies(dt);
+  updateStructs(dt);
   updateShots(dt);
   updateDrops(dt);
   updateFx(dt);

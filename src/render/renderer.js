@@ -3,10 +3,13 @@ import { G } from '../state.js';
 import { CFG } from '../config.js';
 import { settings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
-import { SPR } from './sprites.js';
+import { SPR, HEAD } from './sprites.js';
 import { drawGround, drawRoofs, T } from '../world/world.js';
 import { drawLighting } from './lighting.js';
 import { drawWeather, drawTracks } from './weatherfx.js';
+import { ST } from '../building/structures.js';
+import { BUILD } from '../config.js';
+import { W } from '../world/world.js';
 import { Z } from '../entities/zombies.js';
 import { shots } from '../entities/projectiles.js';
 import { parts, texts } from '../entities/fx.js';
@@ -59,6 +62,33 @@ export function render(alpha, fdt) {
   ctx.globalAlpha = 1;
   if (G.env.season === 3) drawTracks(ctx, G.paused ? 0 : fdt);
   const dr = G.drops; for (let i = 0; i < dr.length; i++) ctx.drawImage(SPR.bag, dr[i].x - 8, dr[i].y - 8, 16, 16);
+  // Bauwerke
+  const sl = ST.list, snowy = W.season === 3 && !settings.markTraps;
+  for (let i = 0; i < sl.length; i++) {
+    const b = sl[i]; if (b.x < cx - hw || b.x > cx + hw || b.y < cy - hh || b.y > cy + hh) continue;
+    let spr = SPR.build[b.id];
+    if (b.id === 'beartrap' && b.shut) spr = SPR.build.beartrap_shut; else if (b.id === 'plot' && b.planted) spr = b.grow >= 1 ? SPR.build.plot2 : b.grow > 0.4 ? SPR.build.plot1 : spr; else if (b.id === 'gas' && b.fire > 0) spr = SPR.build.gas_burn;
+    if (b.def.trap && snowy && !(b.fire > 0)) ctx.globalAlpha = 0.3;
+    const ox = b.hitT > 0 ? (Math.random() - 0.5) * 3 : (b.id === 'gen' && b.on ? (Math.random() - 0.5) : 0);
+    if (b.rot && (b.def.dir || b.id === 'door' || b.id === 'spikewall' || b.id === 'wire' || b.id === 'tripwire')) { ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.rot * Math.PI / 2); ctx.drawImage(spr, -16, -16, 32, 32); ctx.restore(); }
+    else ctx.drawImage(spr, b.x - 16 + ox, b.y - 16, 32, 32);
+    ctx.globalAlpha = 1;
+    if (b.lvl > 1) ctx.drawImage(SPR.lvl[b.lvl - 1], b.x - 16, b.y - 16, 32, 32);
+    if (HEAD[b.id]) { ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(b.id === 'mg' && p.mounted === b ? p.ang : b.ang); ctx.drawImage(HEAD[b.id], -16, -16, 32, 32); ctx.restore(); }
+    if (b.id === 'lure' && b.on && (G.tick & 16)) { ctx.fillStyle = '#ff4'; ctx.fillRect(b.x - 2, b.y - 14, 4, 4); }
+    if (b.def.trap && settings.markTraps) ctx.drawImage(SPR.mark, b.x - 4, b.y - 20, 8, 8);
+    if (b.hp < b.maxHp * 0.98 && !b.def.trap) { ctx.fillStyle = '#000'; ctx.fillRect(b.x - 12, b.y + 11, 24, 3); ctx.fillStyle = b.hp > b.maxHp * 0.4 ? '#5c5' : '#c44'; ctx.fillRect(b.x - 12, b.y + 11, 24 * b.hp / b.maxHp, 3); }
+    if (b.def.ammo && b.def.cap && b.ammo < 1 && (G.tick & 32)) { ctx.fillStyle = '#f44'; ctx.fillRect(b.x - 1, b.y - 18, 3, 6); ctx.fillRect(b.x - 1, b.y - 10, 3, 2); }
+  }
+  // Bau-Vorschau
+  if (G.build) {
+    const g = G.build, gx = g.tx * 32, gy = g.ty * 32;
+    ctx.globalAlpha = 0.65; ctx.save(); ctx.translate(gx + 16, gy + 16); ctx.rotate(g.rot * Math.PI / 2); ctx.drawImage(SPR.build[g.id], -16, -16, 32, 32); ctx.restore();
+    ctx.globalAlpha = 0.35; ctx.fillStyle = g.ok ? '#3f3' : '#f33'; ctx.fillRect(gx, gy, 32, 32);
+    ctx.globalAlpha = 1; ctx.strokeStyle = g.ok ? '#3f3' : '#f33'; ctx.lineWidth = 1.5; ctx.strokeRect(gx + 0.5, gy + 0.5, 31, 31);
+    const bd = BUILD[g.id];
+    if (bd.range) { ctx.globalAlpha = 0.5; ctx.beginPath(); if (bd.dir) { const a = g.rot * Math.PI / 2; ctx.moveTo(gx + 16, gy + 16); ctx.arc(gx + 16, gy + 16, bd.range, a - 0.5, a + 0.5); ctx.closePath(); } else ctx.arc(gx + 16, gy + 16, bd.range, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
+  }
   // Zombies
   const zl = Z.list;
   for (let i = 0; i < zl.length; i++) {
