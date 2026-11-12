@@ -77,6 +77,10 @@ export const ZT = {
   brute:    { n: 'Brute',    sp: 30, hp: 280, dmg: 26, r: 14, cd: 1.5, sdmg: 30, minDay: 12, w: 1.2, col: '#7a4a4a', sz: 1.6, heavy: true },
 };
 export const ZKEYS = Object.keys(ZT);
+// Wildtiere (teilen sich den Zombie-Pool; liefern rohes Fleisch). Anzahl je Jahreszeit – im Herbst ziehen Herden.
+ZT.deer = { n: 'Reh', sp: 118, hp: 34, dmg: 0, r: 9, cd: 1, sdmg: 0, minDay: 1e9, w: 0, col: '#8a6a44', sz: 1.05, animal: true, meat: 3 };
+ZT.rabbit = { n: 'Hase', sp: 135, hp: 8, dmg: 0, r: 5, cd: 1, sdmg: 0, minDay: 1e9, w: 0, col: '#b8a890', sz: 0.6, animal: true, meat: 1 };
+export const ANIMALS = { count: [5, 5, 9, 1], flee: 125, fleeSneak: 55 };
 
 // Gegenstände. t = Typ, w = Gewicht (kg), st = Stapelgröße
 export const ITEMS = {

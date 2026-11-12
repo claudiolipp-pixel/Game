@@ -18,6 +18,8 @@ import { updateSurvival } from '../systems/survival.js';
 import { interact, rollLoot } from '../systems/interact.js';
 import { updateMinimap } from '../ui/minimap.js';
 import { LOOT } from '../config.js';
+import { updateWeather, resetWeather } from '../world/weather.js';
+import { addTrack, clearTracks } from '../render/weatherfx.js';
 import { dropAt } from '../systems/inventory.js';
 import { addHighscore, clearSave } from './save.js';
 import { sfx } from '../audio/audio.js';
@@ -30,7 +32,7 @@ export function newGame(seed) {
   G.clock = CFG.START_HOUR / 24 * G.dayLen;
   G.stats = { kills: 0, trapKills: 0, cause: '' };
   G.bp = {}; G.build = null; G.tick = 0;
-  initWorld(G.seed); resetTime(); G.env.bloodMoon = false; G.env.weather = 'clear';
+  initWorld(G.seed); resetTime(); G.env.bloodMoon = false; resetWeather(); clearTracks();
   updateTime(0);
   clearZombies(); clearShots(); clearFx(); G.drops.length = 0; G.flashT = 0; G.shake = 0;
   G.inv = newInventory();
@@ -60,6 +62,8 @@ export function update(dt) {
   G.clock += dt;
   updateTime(dt);
   updateSurvival(dt);
+  updateWeather(dt);
+  if (G.env.season === 3 && G.player.moving && !G.player.inside) addTrack(G.player.x, G.player.y);
   updatePlayer(dt);
   updateWorld();
   updateCombat(dt);
@@ -85,6 +89,7 @@ function die() {
 }
 
 Z.onKill = z => {
+  if (z.def.animal) { dropAt(z.x, z.y, makeItem('rawmeat', z.def.meat)); return; }
   const n = z.def.heavy ? 3 : Math.random() < 0.16 ? 1 : 0;
   for (let i = 0; i < n; i++) { const l = rollLoot(LOOT.zombie, Math.random); dropAt(z.x + Math.random() * 16 - 8, z.y + Math.random() * 16 - 8, makeItem(l[0], l[1])); }
 };

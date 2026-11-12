@@ -6,6 +6,7 @@ import { input, stickRadius } from '../core/input.js';
 import { SPR } from './sprites.js';
 import { drawGround, drawRoofs, T } from '../world/world.js';
 import { drawLighting } from './lighting.js';
+import { drawWeather, drawTracks } from './weatherfx.js';
 import { Z } from '../entities/zombies.js';
 import { shots } from '../entities/projectiles.js';
 import { parts, texts } from '../entities/fx.js';
@@ -37,7 +38,7 @@ function drawSprite(img, x, y, ang, sz) {
   ctx.drawImage(img, -img.width, -img.height, img.width * 2, img.height * 2);
 }
 
-export function render(alpha) {
+export function render(alpha, fdt) {
   const p = G.player;
   if (!p) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, view.w, view.h); return; }
   const s = view.scale;
@@ -56,6 +57,7 @@ export function render(alpha) {
   // Partikel am Boden (Blutflecken) + Boden-Items
   for (let i = 0; i < parts.length; i++) { const q = parts[i]; if (!q.on || q.max < 5) continue; ctx.globalAlpha = Math.min(1, q.life / 3) * 0.7; ctx.fillStyle = q.col; ctx.fillRect(q.x - q.sz, q.y - q.sz, q.sz * 2, q.sz * 2); }
   ctx.globalAlpha = 1;
+  if (G.env.season === 3) drawTracks(ctx, G.paused ? 0 : fdt);
   const dr = G.drops; for (let i = 0; i < dr.length; i++) ctx.drawImage(SPR.bag, dr[i].x - 8, dr[i].y - 8, 16, 16);
   // Zombies
   const zl = Z.list;
@@ -90,6 +92,7 @@ export function render(alpha) {
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawRoofs(ctx, view, Math.floor(p.x / T), Math.floor(p.y / T));
+  drawWeather(ctx, view, G.paused ? 0 : fdt);
   drawLighting(ctx, view);
   // schwebende Texte
   ctx.font = 'bold ' + Math.round(6 * s) + 'px monospace'; ctx.textAlign = 'center';

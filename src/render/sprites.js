@@ -32,6 +32,11 @@ export function initSprites() {
     SPR.z[k] = humanoid(shade(ZT[k].col, 0.75), ZT[k].col, shade(ZT[k].col, 0.5), true);
     SPR.zf[k] = humanoid('#7fa8c8', '#bfe0f0', '#e8f4fa', true);   // Frost-Variante
   }
+  for (const k of ['deer', 'rabbit']) SPR.z[k] = SPR.zf[k] = mk(16, 16, x => {
+    const c = ZT[k].col; R(x, shade(c, 0.8), 3, 5, 9, 6); R(x, c, 4, 6, 7, 4); R(x, c, 11, 6, 3, 4); R(x, shade(c, 0.6), 13, 6, 1, 1); R(x, shade(c, 0.6), 13, 9, 1, 1);
+    R(x, shade(c, 0.6), 4, 4, 2, 1); R(x, shade(c, 0.6), 4, 11, 2, 1); R(x, shade(c, 0.6), 9, 4, 2, 1); R(x, shade(c, 0.6), 9, 11, 2, 1); R(x, '#eee', 2, 7, 1, 2);
+    if (k === 'deer') { R(x, '#d8c8a0', 12, 4, 1, 2); R(x, '#d8c8a0', 12, 10, 1, 2); }
+  });
   SPR.light = mk(128, 128, x => {
     const g = x.createRadialGradient(64, 64, 4, 64, 64, 64);
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.7)'); g.addColorStop(1, 'rgba(255,255,255,0)');
