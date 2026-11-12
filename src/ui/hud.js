@@ -4,9 +4,11 @@ import { CFG, ITEMS } from '../config.js';
 import { weaponSlot, weaponDef } from '../systems/combat.js';
 import { countItem } from '../systems/inventory.js';
 import { findTarget } from '../systems/interact.js';
+import { SPR, iconCanvas } from '../render/sprites.js';
+import { useItem } from '../systems/survival.js';
 
 const $ = id => document.getElementById(id);
-let acc = 0, lastClock = '', lastWeapon = '', lastStatus = '';
+let acc = 0, lastClock = '', lastWeapon = '', lastStatus = '', lastBar = '';
 export function toast(msg, warn) {
   const box = $('toasts'); if (!box) return;
   if (box.lastChild && box.lastChild.textContent === msg) return;
@@ -40,6 +42,18 @@ export function updateHud(dt, force) {
   if (p.reloadT > 0) wt += ' – lädt…';
   if (p.mounted) wt = 'MG-Nest (' + countItem('ammoR') + ')';
   if (wt !== lastWeapon) $('weapon').textContent = lastWeapon = wt;
+  // Schnellleiste: die ersten 8 Inventar-Slots, Tippen = benutzen/ausrüsten
+  const sl = G.inv.slots; let sig = '' + G.inv.weapon;
+  for (let i = 0; i < 8; i++) sig += sl[i] ? '|' + sl[i].id + sl[i].n : '|';
+  if (sig !== lastBar) {
+    lastBar = sig; const bar = $('hotbar'); bar.textContent = '';
+    for (let i = 0; i < 8; i++) {
+      const b = document.createElement('button'); b.className = 'slot' + (i === G.inv.weapon ? ' eq' : '');
+      if (sl[i]) { b.appendChild(iconCanvas(SPR.item[sl[i].id])); if (sl[i].n > 1) { const sp = document.createElement('span'); sp.textContent = sl[i].n; b.appendChild(sp); } }
+      b.addEventListener('pointerdown', e => { e.preventDefault(); e.stopPropagation(); if (!G.paused && G.inv.slots[i]) { useItem(i); updateHud(0, true); } });
+      bar.appendChild(b);
+    }
+  }
   $('btn-interact').classList.toggle('on', findTarget() > 0);
   $('btn-sprint').classList.toggle('on', p.sprinting);
   $('btn-light').classList.toggle('on', p.flash);

@@ -140,22 +140,36 @@ function drawItem(x, id) {
 
 // ---------- Jahreszeiten-Paletten + Kachel-Sprites ----------
 export const PAL = [
-  { grass: '#5d8f3e', grassB: '#548636', forest: '#44713a', farm: '#8a6e3f', farmB: '#7a6036', swamp: '#4d5e3a', water: '#2f6fa3', waterB: '#3a7db0', sand: '#c9b877', road: '#55575a', pave: '#7f817a', floor: '#9a8a70', tree: '#2f7a35', treeB: '#245e2a', bush: '#3a8a3a', flower: '#e8d24a', crop: '#7ab04a' },
-  { grass: '#7b9a3c', grassB: '#728f36', forest: '#4b7430', farm: '#a58a42', farmB: '#94793a', swamp: '#55632f', water: '#2c74aa', waterB: '#3a84b8', sand: '#d6c27a', road: '#5a5b5c', pave: '#868780', floor: '#9a8a70', tree: '#2d6b2a', treeB: '#235522', bush: '#3f7f30', flower: '#f0f0e0', crop: '#d0b040' },
-  { grass: '#8c8a45', grassB: '#80793c', forest: '#6c5a32', farm: '#7a5c38', farmB: '#6b5030', swamp: '#5a5636', water: '#35658f', waterB: '#41739c', sand: '#bfae72', road: '#525355', pave: '#7a7a74', floor: '#9a8a70', tree: '#c0742a', treeB: '#9a4f22', bush: '#9a6a2a', flower: '#b04a2a', crop: '#c98a30' },
-  { grass: '#dfe6ea', grassB: '#d3dce2', forest: '#cdd7dc', farm: '#d6dad8', farmB: '#c6ccca', swamp: '#b9c4c4', water: '#a9cfe0', waterB: '#bfdcea', sand: '#dadad2', road: '#8d9195', pave: '#b6babc', floor: '#9a8a70', tree: '#eef3f5', treeB: '#57705f', bush: '#c9d6d2', flower: '#ffffff', crop: '#aab0a0' },
+  { grass: '#6b7340', grassB: '#5f6838', forest: '#56603a', farm: '#74603c', farmB: '#665434', swamp: '#4c5238', water: '#3c5a66', waterB: '#4a6a76', sand: '#8f8562', road: '#4a4a48', pave: '#6a6a62', floor: '#75684f', tree: '#4f6a36', treeB: '#3a5028', bush: '#58703a', flower: '#b8a85a', crop: '#7d8a44' },
+  { grass: '#7a7a3e', grassB: '#6e6e36', forest: '#5c6434', farm: '#84703c', farmB: '#746234', swamp: '#535434', water: '#3a5c6a', waterB: '#486c7a', sand: '#9a8c60', road: '#4c4c49', pave: '#6e6e64', floor: '#75684f', tree: '#4a6430', treeB: '#364a22', bush: '#566a32', flower: '#c8c0a0', crop: '#a8963c' },
+  { grass: '#7c6e3c', grassB: '#6e6034', forest: '#66522e', farm: '#6a5234', farmB: '#5c462c', swamp: '#54482e', water: '#3a5260', waterB: '#47606e', sand: '#8a7c5a', road: '#474745', pave: '#66665e', floor: '#75684f', tree: '#9a5c28', treeB: '#6e3c1c', bush: '#7c5a2a', flower: '#8a4428', crop: '#a07030' },
+  { grass: '#c9d0d2', grassB: '#bcc4c8', forest: '#b8c2c4', farm: '#c0c4c0', farmB: '#b0b6b2', swamp: '#a4aeae', water: '#9ab8c4', waterB: '#acc8d2', sand: '#c2c2b8', road: '#7c8084', pave: '#a0a4a6', floor: '#75684f', tree: '#dfe6e8', treeB: '#4c6252', bush: '#b4c2be', flower: '#ffffff', crop: '#989e90' },
 ];
-export const WALLCOL = { house: '#8a5a44', market: '#5a7a94', hardware: '#b8742c', police: '#34466a', gas: '#b0b0a8', military: '#56633c', farm: '#7a5530' };
-export const ROOFCOL = { house: '#6e3b30', market: '#3f5f7a', hardware: '#8f561c', police: '#22304e', gas: '#c23a2a', military: '#3e4a2a', farm: '#5c3a22' };
+export const WALLCOL = { house: '#7a5a48', market: '#5f6e72', hardware: '#8a6a3a', police: '#3e4a5c', gas: '#8c8c84', military: '#555c40', farm: '#6e5236' };
+export const ROOFCOL = { house: '#4e5052', market: '#3e4a52', hardware: '#5a4a34', police: '#2c3440', gas: '#7a3a30', military: '#3a402c', farm: '#4c3626' };
 
+let lcg = 1;
+const rnd = () => { lcg = (Math.imul(lcg, 1664525) + 1013904223) >>> 0; return lcg / 4294967296; };
+function canopy(p, s, variant) {
+  return mk(24, 24, x => {
+    lcg = 77 + variant * 131 + s * 17;
+    const hi = shade(p.tree, 1.18), lo = shade(p.treeB, 0.8);
+    for (let y = 0; y < 24; y++) for (let xx = 0; xx < 24; xx++) {
+      const dx = xx - 11.5, dy = (y - 11) * 1.08, d = Math.sqrt(dx * dx + dy * dy) + rnd() * 2.2;
+      if (d > 11.2) continue;
+      const lit = (-dx - dy) / 16 + rnd() * 0.5;      // Licht von oben links
+      x.fillStyle = d > 10 ? lo : lit > 0.55 ? hi : lit > 0.05 ? p.tree : lit > -0.4 ? p.treeB : lo;
+      x.fillRect(xx, y, 1, 1);
+    }
+    for (let i = 0; i < 10; i++) { x.fillStyle = lo; x.fillRect(4 + (rnd() * 16 | 0), 5 + (rnd() * 15 | 0), 1, 1); }
+    if (s === 3) for (let i = 0; i < 26; i++) { x.fillStyle = '#f4f8fa'; x.fillRect(3 + (rnd() * 17 | 0), 2 + (rnd() * 11 | 0), 2, 1); }
+  });
+}
 function makeTileSet(s) {
   const p = PAL[s], T = {};
-  T.tree = mk(16, 16, x => {
-    R(x, 'rgba(0,0,0,.22)', 2, 3, 13, 13);
-    R(x, p.treeB, 2, 1, 12, 13); R(x, p.treeB, 1, 3, 14, 9); R(x, p.tree, 3, 2, 9, 9); R(x, p.tree, 2, 4, 11, 6);
-    R(x, shade(p.tree, 1.15), 4, 3, 4, 3); R(x, p.treeB, 9, 8, 2, 2); R(x, p.treeB, 5, 9, 2, 1);
-    if (s === 3) { R(x, '#5a4630', 7, 7, 2, 2); }
-  });
+  // Stamm + Bodenschatten (Krone wird separat über den Figuren gezeichnet)
+  T.tree = mk(16, 16, x => { R(x, 'rgba(0,0,0,.28)', 1, 7, 14, 8); R(x, 'rgba(0,0,0,.18)', 3, 5, 11, 11); R(x, '#3e3020', 6, 4, 4, 9); R(x, '#54422c', 7, 4, 2, 9); R(x, '#2c2216', 5, 12, 6, 2); });
+  T.canopy = [canopy(p, s, 0), canopy(p, s, 1), canopy(p, s, 2)];
   T.stump = mk(16, 16, x => { R(x, '#5c3f22', 5, 5, 6, 6); R(x, '#c9a070', 6, 6, 4, 4); R(x, '#94693c', 7, 7, 2, 2); });
   T.rock = mk(16, 16, x => { R(x, 'rgba(0,0,0,.2)', 3, 5, 12, 10); R(x, '#6b6e73', 2, 4, 12, 9); R(x, '#8a8d92', 3, 3, 9, 8); R(x, '#a5a8ad', 4, 4, 4, 3); if (s === 3) R(x, '#eef3f5', 3, 3, 8, 2); });
   T.bush = mk(16, 16, x => { R(x, shade(p.bush, 0.8), 2, 4, 12, 9); R(x, p.bush, 3, 3, 10, 9); R(x, '#b02a50', 5, 5, 2, 2); R(x, '#b02a50', 9, 7, 2, 2); R(x, '#b02a50', 6, 9, 2, 2); });
@@ -165,11 +179,14 @@ function makeTileSet(s) {
   T.cropE = mk(16, 16, x => { for (let i = 0; i < 3; i++) R(x, shade(p.farmB, 0.85), 2 + i * 5, 6, 2, 5); });
   T.crate = mk(16, 16, x => { R(x, '#6a4828', 2, 3, 12, 11); R(x, '#94693c', 3, 4, 10, 9); R(x, '#6a4828', 3, 8, 10, 1); R(x, '#6a4828', 7, 4, 2, 9); R(x, '#ffd060', 7, 7, 2, 3); });
   T.crateO = mk(16, 16, x => { R(x, '#4a3420', 2, 3, 12, 11); R(x, '#2a1c10', 3, 4, 10, 9); });
-  T.wall = {}; T.win = {};
+  T.wall = {}; T.win = {}; T.wallTop = {};
   for (const k in WALLCOL) {
-    const c = WALLCOL[k];
-    T.wall[k] = mk(16, 16, x => { R(x, c, 0, 0, 16, 16); R(x, shade(c, 1.2), 0, 0, 16, 2); R(x, shade(c, 0.75), 0, 14, 16, 2); R(x, shade(c, 0.85), 7, 2, 1, 12); if (s === 3) R(x, '#eef3f5', 0, 0, 16, 1); });
-    T.win[k] = mk(16, 16, x => { R(x, c, 0, 0, 16, 16); R(x, shade(c, 1.2), 0, 0, 16, 2); R(x, '#223', 3, 4, 10, 8); R(x, '#8bd', 4, 5, 8, 6); R(x, '#cef', 5, 6, 2, 2); });
+    const c = WALLCOL[k], top = shade(ROOFCOL[k], 0.7);
+    // Fassade (Südseite, Schrägsicht): Verkleidung mit Sockel
+    const facade = x => { R(x, c, 0, 0, 16, 16); for (let i = 1; i < 12; i += 3) R(x, shade(c, 0.86), 0, i, 16, 1); R(x, shade(c, 1.12), 0, 0, 16, 1); R(x, shade(c, 0.6), 0, 12, 16, 4); R(x, shade(c, 0.5), 0, 15, 16, 1); if (s === 3) R(x, '#dfe6e8', 0, 15, 16, 1); };
+    T.wall[k] = mk(16, 16, facade);
+    T.win[k] = mk(16, 16, x => { facade(x); R(x, '#1c2226', 3, 2, 10, 9); R(x, '#4a6470', 4, 3, 8, 7); R(x, '#7a98a4', 4, 3, 3, 2); R(x, '#1c2226', 8, 3, 1, 7); R(x, shade(c, 1.2), 2, 11, 12, 1); });
+    T.wallTop[k] = mk(16, 16, x => { R(x, top, 0, 0, 16, 16); R(x, shade(top, 1.25), 0, 0, 16, 1); R(x, shade(top, 0.8), 0, 15, 16, 1); if (s === 3) R(x, '#dfe6e8', 0, 0, 16, 3); });
   }
   return T;
 }

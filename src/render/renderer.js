@@ -4,7 +4,7 @@ import { CFG } from '../config.js';
 import { settings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
 import { SPR, HEAD } from './sprites.js';
-import { drawGround, drawRoofs, T } from '../world/world.js';
+import { drawGround, drawRoofs, drawCanopies, T } from '../world/world.js';
 import { drawLighting } from './lighting.js';
 import { drawWeather, drawTracks } from './weatherfx.js';
 import { ST } from '../building/structures.js';
@@ -35,8 +35,15 @@ export function resize() {
 // Bildschirmposition des Spielers in CSS-Pixeln (für Maus-Zielen)
 export function playerScreen(out) { out.x = (view.px * view.scale + view.tx) / view.css; out.y = (view.py * view.scale + view.ty) / view.css; }
 
+let vig = null;
+function vignette() {
+  if (!vig) { vig = document.createElement('canvas'); vig.width = vig.height = 128; const x = vig.getContext('2d'), g = x.createRadialGradient(64, 64, 34, 64, 64, 92); g.addColorStop(0, 'rgba(8,10,6,0)'); g.addColorStop(1, 'rgba(8,10,6,0.62)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
+  ctx.imageSmoothingEnabled = true; ctx.drawImage(vig, 0, 0, view.w, view.h); ctx.imageSmoothingEnabled = false;
+}
 function drawSprite(img, x, y, ang, sz) {
   const s = view.scale;
+  ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
+  ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.fillRect(x - 7 * sz, y + 2, 14 * sz, 8 * sz); ctx.fillRect(x - 5 * sz, y + 1, 10 * sz, 10 * sz);
   ctx.setTransform(Math.cos(ang) * s * sz, Math.sin(ang) * s * sz, -Math.sin(ang) * s * sz, Math.cos(ang) * s * sz, x * s + view.tx, y * s + view.ty);
   ctx.drawImage(img, -img.width, -img.height, img.width * 2, img.height * 2);
 }
@@ -84,8 +91,8 @@ export function render(alpha, fdt) {
   if (G.build) {
     const g = G.build, gx = g.tx * 32, gy = g.ty * 32;
     ctx.globalAlpha = 0.65; ctx.save(); ctx.translate(gx + 16, gy + 16); ctx.rotate(g.rot * Math.PI / 2); ctx.drawImage(SPR.build[g.id], -16, -16, 32, 32); ctx.restore();
-    ctx.globalAlpha = 0.35; ctx.fillStyle = g.ok ? '#3f3' : '#f33'; ctx.fillRect(gx, gy, 32, 32);
-    ctx.globalAlpha = 1; ctx.strokeStyle = g.ok ? '#3f3' : '#f33'; ctx.lineWidth = 1.5; ctx.strokeRect(gx + 0.5, gy + 0.5, 31, 31);
+    ctx.globalAlpha = 0.4; ctx.fillStyle = g.ok ? '#4ab4ff' : '#f33'; ctx.fillRect(gx, gy, 32, 32);
+    ctx.globalAlpha = 1; ctx.strokeStyle = g.ok ? '#8fd4ff' : '#f33'; ctx.lineWidth = 1.5; ctx.strokeRect(gx + 0.5, gy + 0.5, 31, 31);
     const bd = BUILD[g.id];
     if (bd.range) { ctx.globalAlpha = 0.5; ctx.beginPath(); if (bd.dir) { const a = g.rot * Math.PI / 2; ctx.moveTo(gx + 16, gy + 16); ctx.arc(gx + 16, gy + 16, bd.range, a - 0.5, a + 0.5); ctx.closePath(); } else ctx.arc(gx + 16, gy + 16, bd.range, 0, 6.283); ctx.stroke(); ctx.globalAlpha = 1; }
   }
@@ -120,10 +127,12 @@ export function render(alpha, fdt) {
   for (let i = 0; i < parts.length; i++) { const q = parts[i]; if (!q.on || q.max >= 5) continue; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.5); ctx.fillStyle = q.col; ctx.fillRect(q.x - q.sz / 2, q.y - q.sz / 2, q.sz, q.sz); }
   ctx.globalAlpha = 1;
 
+  drawCanopies(ctx, view, view.px, view.py);
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawRoofs(ctx, view, Math.floor(p.x / T), Math.floor(p.y / T));
   drawWeather(ctx, view, G.paused ? 0 : fdt);
   drawLighting(ctx, view);
+  vignette();
   // schwebende Texte
   ctx.font = 'bold ' + Math.round(6 * s) + 'px monospace'; ctx.textAlign = 'center';
   for (let i = 0; i < texts.length; i++) { const t = texts[i]; if (!t.on) continue; ctx.globalAlpha = Math.min(1, t.life * 2); ctx.fillStyle = '#000'; ctx.fillText(t.txt, t.x * s + view.tx + 1, t.y * s + view.ty + 1); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x * s + view.tx, t.y * s + view.ty); }

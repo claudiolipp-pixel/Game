@@ -203,43 +203,75 @@ export function setSeason(s) { W.season = s; W.frozen = s === 3; }
 
 // ---------- Rendering ----------
 const GCOL = ['grass', 'forest', 'farm', 'swamp', 'water', 'sand', 'road', 'pave', 'floor'];
+const PRI = [4, 5, 3, 2, 0, 1, -1, 6, -1];           // wer "wächst" in wen hinein (Kanten-Dithering)
+const TEX = [];                                       // [season][ground] = [base, dunkel, hell]
+function tex(s) { if (!TEX[s]) TEX[s] = GCOL.map(k => [PAL[s][k], shade(PAL[s][k], 0.87), shade(PAL[s][k], 1.1)]); return TEX[s]; }
+let rs = 1;
+const rnd = () => { rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0; return rs / 4294967296; };
+const gAt = (c, lx, ly) => (lx >= 0 && ly >= 0 && lx < CH && ly < CH) ? c.g[lx + ly * CH] : groundAt(c.cx * CH + lx, c.cy * CH + ly);
+const isWall = ob => ob === O_WALL || ob === O_WINDOW;
+
 function renderChunk(c) {
   if (!c.canvas) { c.canvas = document.createElement('canvas'); c.canvas.width = c.canvas.height = CH * 16; c.ctx = c.canvas.getContext('2d', { alpha: false }); }
-  const x = c.ctx, s = W.season, p = PAL[s], ts = SPR.tiles[s], type = c.bld ? c.bld.type : 'house';
+  const x = c.ctx, s = W.season, p = PAL[s], ts = SPR.tiles[s], tx_ = tex(s), type = c.bld ? c.bld.type : 'house';
+  const trees = c.trees || (c.trees = []); trees.length = 0;
   for (let ly = 0; ly < CH; ly++) for (let lx = 0; lx < CH; lx++) {
     const i = lx + ly * CH, g = c.g[i], px = lx * 16, py = ly * 16, tx = c.cx * CH + lx, ty = c.cy * CH + ly;
-    const h = hash2(tx, ty, 9), a = (h * 977) | 0;
-    x.fillStyle = p[GCOL[g]]; x.fillRect(px, py, 16, 16);
-    if (g === G_GRASS || g === G_FOREST || g === G_SWAMP) {
-      x.fillStyle = g === G_GRASS ? p.grassB : shade(p[GCOL[g]], 0.9);
-      x.fillRect(px + a % 11, py + (a >> 3) % 12, 4, 2); x.fillRect(px + (a >> 2) % 13, py + (a >> 5) % 13, 2, 3);
-      if (g === G_GRASS && h > 0.93 && s < 2) { x.fillStyle = p.flower; x.fillRect(px + a % 14, py + (a >> 4) % 14, 2, 2); }
-      if (g === G_SWAMP && h > 0.7) { x.fillStyle = s === 3 ? p.water : shade(p.water, 0.6); x.fillRect(px + 3, py + 5, 9, 5); }
-    } else if (g === G_FARM) { x.fillStyle = p.farmB; for (let k = 1; k < 16; k += 4) x.fillRect(px, py + k, 16, 1); }
-    else if (g === G_WATER) { x.fillStyle = p.waterB; x.fillRect(px + a % 9, py + (a >> 3) % 13, 6, 1); if (h > 0.5) x.fillRect(px + (a >> 2) % 10, py + (a >> 6) % 14, 4, 1); }
-    else if (g === G_SAND) { x.fillStyle = shade(p.sand, 0.92); x.fillRect(px + a % 13, py + (a >> 3) % 13, 2, 2); }
-    else if (g === G_ROAD) { x.fillStyle = shade(p.road, 0.88); x.fillRect(px + a % 12, py + (a >> 3) % 12, 3, 3); if (h > 0.8) { x.fillStyle = shade(p.road, 1.25); x.fillRect(px + 6, py + 6, 4, 1); } }
-    else if (g === G_PAVE) { x.fillStyle = shade(p.pave, 0.92); x.fillRect(px, py + 15, 16, 1); x.fillRect(px + 15, py, 1, 16); }
-    else if (g === G_FLOOR) { x.fillStyle = shade(p.floor, 0.88); x.fillRect(px, py + 7, 16, 1); x.fillRect(px, py + 15, 16, 1); x.fillRect(px + (ly & 1 ? 4 : 11), py, 1, 16); }
+    const h = hash2(tx, ty, 9), t = tx_[g];
+    rs = ((h * 4294967296) >>> 0) | 1;
+    x.fillStyle = t[0]; x.fillRect(px, py, 16, 16);
+    if (g === G_GRASS || g === G_FOREST || g === G_SWAMP || g === G_SAND) {
+      for (let k = 0; k < 9; k++) { x.fillStyle = t[1 + (k & 1)]; x.fillRect(px + (rnd() * 15 | 0), py + (rnd() * 16 | 0), 1 + (rnd() * 2 | 0), 1); }
+      if (g !== G_SAND) for (let k = 0; k < 3; k++) { const gx = px + (rnd() * 15 | 0), gy = py + 1 + (rnd() * 13 | 0); x.fillStyle = t[1]; x.fillRect(gx, gy, 1, 2); x.fillStyle = t[2]; x.fillRect(gx + 1, gy - 1, 1, 2); }
+      if (g === G_GRASS && h > 0.94 && s < 2) { x.fillStyle = p.flower; x.fillRect(px + 3 + (rnd() * 10 | 0), py + 3 + (rnd() * 10 | 0), 1, 1); }
+      if (g === G_SWAMP && h > 0.7) { x.fillStyle = s === 3 ? p.water : shade(p.water, 0.7); x.fillRect(px + 3, py + 5, 9, 5); x.fillRect(px + 5, py + 4, 5, 7); }
+    } else if (g === G_FARM) { x.fillStyle = t[1]; for (let k = 1; k < 16; k += 4) x.fillRect(px, py + k, 16, 1); for (let k = 0; k < 4; k++) { x.fillStyle = t[2]; x.fillRect(px + (rnd() * 15 | 0), py + (rnd() * 4 | 0) * 4 + 3, 2, 1); } }
+    else if (g === G_WATER) { x.fillStyle = t[1]; x.fillRect(px + (rnd() * 8 | 0), py + (rnd() * 15 | 0), 7, 1); x.fillStyle = p.waterB; x.fillRect(px + (rnd() * 9 | 0), py + (rnd() * 15 | 0), 5, 1); if (h > 0.5) x.fillRect(px + (rnd() * 11 | 0), py + (rnd() * 15 | 0), 3, 1); }
+    else if (g === G_ROAD) { for (let k = 0; k < 7; k++) { x.fillStyle = t[1 + (k & 1)]; x.fillRect(px + (rnd() * 14 | 0), py + (rnd() * 15 | 0), 1 + (rnd() * 3 | 0), 1); } if (h > 0.85) { x.fillStyle = shade(p.road, 0.7); x.fillRect(px + 4, py + 5, 1, 6); x.fillRect(px + 5, py + 10, 4, 1); } }
+    else if (g === G_PAVE) { x.fillStyle = t[1]; x.fillRect(px, py + 15, 16, 1); x.fillRect(px + 15, py, 1, 16); x.fillRect(px + 7, py, 1, 16); for (let k = 0; k < 4; k++) { x.fillStyle = t[1 + (k & 1)]; x.fillRect(px + (rnd() * 15 | 0), py + (rnd() * 15 | 0), 1, 1); } }
+    else if (g === G_FLOOR) { x.fillStyle = t[1]; x.fillRect(px, py + 7, 16, 1); x.fillRect(px, py + 15, 16, 1); x.fillRect(px + (ly & 1 ? 4 : 11), py, 1, 16); x.fillStyle = t[2]; x.fillRect(px + (rnd() * 13 | 0), py + 2 + (rnd() * 3 | 0), 3, 1); }
+    // weiche Biom-Kanten: Nachbarfarbe "wächst" hinein
+    if (g !== G_FLOOR) for (let d = 0; d < 4; d++) {
+      const ng = gAt(c, lx + (d === 0) - (d === 1), ly + (d === 2) - (d === 3));
+      if (ng === g || ng === G_FLOOR || ng === G_ROAD) continue;
+      if (g !== G_ROAD && PRI[ng] <= PRI[g]) continue;
+      const n = g === G_ROAD ? 5 : 14; x.fillStyle = tx_[ng][0];
+      for (let k = 0; k < n; k++) {
+        const along = rnd() * 16 | 0, depth = (rnd() * rnd() * 6) | 0;
+        if (d === 0) x.fillRect(px + 15 - depth, py + along, 1, 1); else if (d === 1) x.fillRect(px + depth, py + along, 1, 1);
+        else if (d === 2) x.fillRect(px + along, py + 15 - depth, 1, 1); else x.fillRect(px + along, py + depth, 1, 1);
+      }
+    }
     const ob = c.o[i]; let spr = null;
     switch (ob) {
-      case O_TREE: spr = ts.tree; break; case O_ROCK: spr = ts.rock; break; case O_STUMP: spr = ts.stump; break; case O_REED: spr = ts.reed; break;
+      case O_TREE: spr = ts.tree; trees.push(i); break;
+      case O_ROCK: spr = ts.rock; break; case O_STUMP: spr = ts.stump; break; case O_REED: spr = ts.reed; break;
       case O_BUSH: spr = s === 3 ? ts.bushE : ts.bush; break; case O_BUSH_E: spr = ts.bushE; break;
       case O_CROP: spr = (s === 1 || s === 2) ? ts.crop : ts.cropE; break;
-      case O_WALL: spr = ts.wall[type]; break; case O_WINDOW: spr = ts.win[type]; break;
+      case O_WALL: case O_WINDOW: {
+        const south = ly + 1 >= CH || !isWall(c.o[i + CH]);     // Südseite sichtbar → Fassade
+        spr = south ? (ob === O_WINDOW ? ts.win[type] : ts.wall[type]) : ts.wallTop[type];
+        if (!south && ob === O_WINDOW) { x.drawImage(spr, px, py); x.fillStyle = '#4a6470'; x.fillRect(px + 5, py + 4, 6, 8); spr = null; }
+        break;
+      }
       case O_CRATE: spr = ts.crate; break; case O_CRATE_O: spr = ts.crateO; break;
     }
     if (spr) x.drawImage(spr, px, py);
+    if (g === G_FLOOR && !isWall(ob) && ly > 0 && isWall(c.o[i - CH])) { x.fillStyle = 'rgba(0,0,0,0.28)'; x.fillRect(px, py, 16, 4); }   // Wandschatten innen
   }
   c.ver = s;
 }
 
-export function drawGround(ctx, v) {
+function visRange(v, out) {
   const s = v.scale, hw = v.w / 2 / s, hh = v.h / 2 / s;
-  const cx0 = Math.floor((v.camX - hw) / CPX), cx1 = Math.floor((v.camX + hw) / CPX);
-  const cy0 = Math.floor((v.camY - hh) / CPX), cy1 = Math.floor((v.camY + hh) / CPX);
+  out[0] = Math.floor((v.camX - hw - 26) / CPX); out[1] = Math.floor((v.camX + hw + 26) / CPX);
+  out[2] = Math.floor((v.camY - hh) / CPX); out[3] = Math.floor((v.camY + hh + 46) / CPX);
+}
+const vr = [0, 0, 0, 0];
+export function drawGround(ctx, v) {
+  const s = v.scale; visRange(v, vr);
   let budget = 2;
-  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+  for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
     const c = ensureChunk(cx, cy);
     if (c.ver !== W.season && (!c.canvas || c.ver === -1 || budget-- > 0)) renderChunk(c);
     const dx = Math.round(cx * CPX * s + v.tx), dy = Math.round(cy * CPX * s + v.ty);
@@ -247,23 +279,40 @@ export function drawGround(ctx, v) {
     ctx.drawImage(c.canvas, dx, dy, dx2 - dx, dy2 - dy);
   }
 }
-// Dächer (ausgeblendet, wenn der Spieler im Gebäude steht)
+// Baumkronen über den Figuren (Welt-Transform muss gesetzt sein); durchscheinend, wenn der Spieler darunter steht
+export function drawCanopies(ctx, v, px, py) {
+  visRange(v, vr);
+  const cs = SPR.tiles[W.season].canopy;
+  for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
+    const c = chunkAt(cx, cy); if (!c || !c.trees || c.ver !== W.season) continue;
+    const tr = c.trees;
+    for (let k = 0; k < tr.length; k++) {
+      const i = tr[k], wx = (cx * CH + (i & 15)) * T + 16, wy = (cy * CH + (i >> 4)) * T + 16;
+      ctx.globalAlpha = (px > wx - 24 && px < wx + 24 && py > wy - 46 && py < wy + 8) ? 0.4 : 1;
+      ctx.drawImage(cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], wx - 24, wy - 40, 48, 48);
+    }
+  }
+  ctx.globalAlpha = 1;
+}
+// Wellblechdächer in Schrägsicht (nach oben versetzt, Südfassade bleibt sichtbar); ausgeblendet, wenn der Spieler im Gebäude steht
 export function drawRoofs(ctx, v, ptx, pty) {
-  const s = v.scale, hw = v.w / 2 / s, hh = v.h / 2 / s;
-  const cx0 = Math.floor((v.camX - hw) / CPX), cx1 = Math.floor((v.camX + hw) / CPX);
-  const cy0 = Math.floor((v.camY - hh) / CPX), cy1 = Math.floor((v.camY + hh) / CPX);
-  for (let cy = cy0; cy <= cy1; cy++) for (let cx = cx0; cx <= cx1; cx++) {
+  const s = v.scale; visRange(v, vr);
+  for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
     const c = chunkAt(cx, cy); if (!c || !c.bld) continue;
     const b = c.bld, inside = ptx >= b.x && ptx < b.x + b.w && pty >= b.y && pty < b.y + b.h;
     c.roofA += ((inside ? 0 : 1) - c.roofA) * 0.15;
     if (c.roofA < 0.02) continue;
-    const x = Math.round(b.x * T * s + v.tx), y = Math.round(b.y * T * s + v.ty), w = Math.round(b.w * T * s), h = Math.round(b.h * T * s);
+    const x = Math.round((b.x * T - 3) * s + v.tx), y = Math.round((b.y * T - 14) * s + v.ty), w = Math.round((b.w * T + 6) * s), h = Math.round(((b.h - 1) * T + 16) * s);
     ctx.globalAlpha = c.roofA;
-    const col = W.season === 3 ? '#e4eaee' : ROOFCOL[b.type];
+    const col = W.season === 3 ? '#cfd6da' : ROOFCOL[b.type];
+    ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x, y + h, w, Math.round(5 * s));          // Traufschatten auf der Fassade
     ctx.fillStyle = col; ctx.fillRect(x, y, w, h);
-    ctx.fillStyle = shade(col, 0.8); ctx.fillRect(x, y + (h >> 1) - Math.round(2 * s), w, Math.round(4 * s));
-    ctx.fillStyle = shade(col, 0.65); ctx.fillRect(x, y, w, Math.round(3 * s)); ctx.fillRect(x, y + h - Math.round(3 * s), w, Math.round(3 * s));
-    ctx.fillRect(x, y, Math.round(3 * s), h); ctx.fillRect(x + w - Math.round(3 * s), y, Math.round(3 * s), h);
+    const st = Math.max(2, Math.round(6 * s)), half = Math.max(1, st >> 1);
+    ctx.fillStyle = shade(col, 0.86); for (let k = 0; k < w; k += st) ctx.fillRect(x + k, y, half, h);   // Wellblech
+    ctx.fillStyle = shade(col, 1.22); ctx.fillRect(x, y + Math.round(h * 0.42), w, Math.max(1, Math.round(2 * s)));    // First
+    ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(x, y + Math.round(h * 0.42), w, h - Math.round(h * 0.42));   // abgewandte Dachhälfte
+    ctx.fillStyle = shade(col, 0.55); ctx.fillRect(x, y + h - Math.round(3 * s), w, Math.round(3 * s)); ctx.fillRect(x, y, w, Math.max(1, Math.round(s)));
+    ctx.fillRect(x, y, Math.max(1, Math.round(1.5 * s)), h); ctx.fillRect(x + w - Math.max(1, Math.round(1.5 * s)), y, Math.max(1, Math.round(1.5 * s)), h);
     ctx.globalAlpha = 1;
   }
 }
