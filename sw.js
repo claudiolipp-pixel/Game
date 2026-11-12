@@ -1,5 +1,5 @@
 // Service Worker (cache-first) – generiert von tools/make-sw.mjs
-const CACHE = 'letzter-winter-e86573443b';
+const CACHE = 'letzter-winter-aa1a19edca';
 const FILES = [
  "./",
  "index.html",
@@ -18,16 +18,21 @@ const FILES = [
  "src/entities/projectiles.js",
  "src/entities/zombies.js",
  "src/main.js",
+ "src/render/lighting.js",
  "src/render/renderer.js",
  "src/render/sprites.js",
  "src/state.js",
  "src/systems/combat.js",
  "src/systems/flowfield.js",
+ "src/systems/interact.js",
  "src/systems/inventory.js",
  "src/systems/noise.js",
  "src/systems/spatial.js",
+ "src/systems/survival.js",
  "src/ui/hud.js",
  "src/ui/menus.js",
+ "src/ui/minimap.js",
+ "src/world/time.js",
  "src/world/world.js",
  "icons/apple-touch-icon.png",
  "icons/icon-192.png",

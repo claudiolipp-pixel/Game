@@ -5,6 +5,7 @@ import { settings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
 import { SPR } from './sprites.js';
 import { drawGround, drawRoofs, T } from '../world/world.js';
+import { drawLighting } from './lighting.js';
 import { Z } from '../entities/zombies.js';
 import { shots } from '../entities/projectiles.js';
 import { parts, texts } from '../entities/fx.js';
@@ -89,6 +90,7 @@ export function render(alpha) {
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawRoofs(ctx, view, Math.floor(p.x / T), Math.floor(p.y / T));
+  drawLighting(ctx, view);
   // schwebende Texte
   ctx.font = 'bold ' + Math.round(6 * s) + 'px monospace'; ctx.textAlign = 'center';
   for (let i = 0; i < texts.length; i++) { const t = texts[i]; if (!t.on) continue; ctx.globalAlpha = Math.min(1, t.life * 2); ctx.fillStyle = '#000'; ctx.fillText(t.txt, t.x * s + view.tx + 1, t.y * s + view.ty + 1); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x * s + view.tx, t.y * s + view.ty); }

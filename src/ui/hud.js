@@ -3,6 +3,7 @@ import { G } from '../state.js';
 import { CFG, ITEMS } from '../config.js';
 import { weaponSlot, weaponDef } from '../systems/combat.js';
 import { countItem } from '../systems/inventory.js';
+import { findTarget } from '../systems/interact.js';
 
 const $ = id => document.getElementById(id);
 let acc = 0, lastClock = '', lastWeapon = '', lastStatus = '';
@@ -39,6 +40,7 @@ export function updateHud(dt, force) {
   if (p.reloadT > 0) wt += ' – lädt…';
   if (p.mounted) wt = 'MG-Nest (' + countItem('ammoR') + ')';
   if (wt !== lastWeapon) $('weapon').textContent = lastWeapon = wt;
+  $('btn-interact').classList.toggle('on', findTarget() > 0);
   $('btn-sprint').classList.toggle('on', p.sprinting);
   $('btn-light').classList.toggle('on', p.flash);
 }
