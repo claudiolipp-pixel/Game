@@ -5,6 +5,9 @@ import { settings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
 import { SPR } from './sprites.js';
 import { drawGround, drawRoofs, T } from '../world/world.js';
+import { Z } from '../entities/zombies.js';
+import { shots } from '../entities/projectiles.js';
+import { parts, texts } from '../entities/fx.js';
 
 export const view = { w: 1, h: 1, scale: 1, camX: 0, camY: 0, tx: 0, ty: 0, css: 1, px: 0, py: 0 };
 let canvas, ctx;
@@ -46,10 +49,51 @@ export function render(alpha) {
   ctx.imageSmoothingEnabled = false;
   drawGround(ctx, view);
 
-  drawSprite(SPR.player, view.px, view.py, p.ang, 1);
+  if (G.shake > 0) { view.tx += Math.round((Math.random() - 0.5) * G.shake * s); view.ty += Math.round((Math.random() - 0.5) * G.shake * s); }
+  const hw = view.w / 2 / s + 24, hh = view.h / 2 / s + 24, cx = view.camX, cy = view.camY;
+  ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
+  // Partikel am Boden (Blutflecken) + Boden-Items
+  for (let i = 0; i < parts.length; i++) { const q = parts[i]; if (!q.on || q.max < 5) continue; ctx.globalAlpha = Math.min(1, q.life / 3) * 0.7; ctx.fillStyle = q.col; ctx.fillRect(q.x - q.sz, q.y - q.sz, q.sz * 2, q.sz * 2); }
+  ctx.globalAlpha = 1;
+  const dr = G.drops; for (let i = 0; i < dr.length; i++) ctx.drawImage(SPR.bag, dr[i].x - 8, dr[i].y - 8, 16, 16);
+  // Zombies
+  const zl = Z.list;
+  for (let i = 0; i < zl.length; i++) {
+    const z = zl[i]; if (!z.alive) continue;
+    const zx = z.ox + (z.x - z.ox) * alpha, zy = z.oy + (z.y - z.oy) * alpha;
+    if (zx < cx - hw || zx > cx + hw || zy < cy - hh || zy > cy + hh) continue;
+    if (z.def.stealth) ctx.globalAlpha = G.env.dark > 0.5 ? 0.35 : 0.6;
+    drawSprite(z.frost ? SPR.zf[z.type] : SPR.z[z.type], zx, zy, z.ang + Math.sin((G.tick + i * 7) * 0.2) * 0.12, z.def.sz * (z.flash > 0 ? 1.15 : 1));
+    ctx.globalAlpha = 1;
+    if (z.hp < z.maxHp && z.def.heavy) { ctx.setTransform(s, 0, 0, s, view.tx, view.ty); ctx.fillStyle = '#000'; ctx.fillRect(zx - 12, zy - 22, 24, 3); ctx.fillStyle = '#c33'; ctx.fillRect(zx - 12, zy - 22, 24 * z.hp / z.maxHp, 3); }
+  }
+  // Spieler
+  if (p.hp > 0) drawSprite(SPR.player, view.px, view.py, p.ang, p.hurtT > 0 ? 1.1 : 1);
+  ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
+  if (p.swing > 0) {
+    ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 3;
+    const a = p.ang + (0.5 - p.swing / 0.16) * p.swingArc;
+    ctx.beginPath(); ctx.arc(view.px, view.py, p.swingR - 4, a - 0.35, a + 0.35); ctx.stroke();
+  }
+  // Projektile
+  for (let i = 0; i < shots.length; i++) {
+    const q = shots[i]; if (!q.on) continue;
+    const qx = q.ox + (q.x - q.ox) * alpha, qy = q.oy + (q.y - q.oy) * alpha;
+    ctx.strokeStyle = q.kind === 1 ? '#d8c8a0' : '#ffe9a0'; ctx.lineWidth = q.kind === 1 ? 2 : 1.5;
+    const m = Math.hypot(q.vx, q.vy) || 1, len = q.kind === 1 ? 9 : 12;
+    ctx.beginPath(); ctx.moveTo(qx, qy); ctx.lineTo(qx - q.vx / m * len, qy - q.vy / m * len); ctx.stroke();
+  }
+  // Partikel
+  for (let i = 0; i < parts.length; i++) { const q = parts[i]; if (!q.on || q.max >= 5) continue; ctx.globalAlpha = Math.min(1, q.life / q.max * 1.5); ctx.fillStyle = q.col; ctx.fillRect(q.x - q.sz / 2, q.y - q.sz / 2, q.sz, q.sz); }
+  ctx.globalAlpha = 1;
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   drawRoofs(ctx, view, Math.floor(p.x / T), Math.floor(p.y / T));
+  // schwebende Texte
+  ctx.font = 'bold ' + Math.round(6 * s) + 'px monospace'; ctx.textAlign = 'center';
+  for (let i = 0; i < texts.length; i++) { const t = texts[i]; if (!t.on) continue; ctx.globalAlpha = Math.min(1, t.life * 2); ctx.fillStyle = '#000'; ctx.fillText(t.txt, t.x * s + view.tx + 1, t.y * s + view.ty + 1); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x * s + view.tx, t.y * s + view.ty); }
+  ctx.globalAlpha = 1;
+  if (p.hurtT > 0) { ctx.fillStyle = 'rgba(180,0,0,' + (p.hurtT * 0.8) + ')'; ctx.fillRect(0, 0, view.w, view.h); }
   drawSticks();
 }
 

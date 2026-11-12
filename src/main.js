@@ -14,6 +14,7 @@ const canvas = document.getElementById('game');
 initRenderer(canvas);
 initInput(canvas);
 showMainMenu();
+import('./audio/audio.js').then(a => { const u = () => a.unlockAudio(); addEventListener('pointerdown', u); addEventListener('touchend', u); addEventListener('keydown', u); });
 startLoop(update, render);
 window.__G = G;   // Debug-Zugriff
 

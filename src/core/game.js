@@ -6,6 +6,15 @@ import { input, pollInput, clearActions, resetSticks } from './input.js';
 import { newPlayer, updatePlayer } from '../entities/player.js';
 import { initWorld, updateWorld, findSpawn } from '../world/world.js';
 import { view, playerScreen } from '../render/renderer.js';
+import { Z, clearZombies, updateZombies } from '../entities/zombies.js';
+import { updateShots, clearShots } from '../entities/projectiles.js';
+import { updateFx, clearFx } from '../entities/fx.js';
+import { updateCombat } from '../systems/combat.js';
+import { newInventory, addItem, makeItem, updateDrops } from '../systems/inventory.js';
+import { updateHud } from '../ui/hud.js';
+import { showGameOver } from '../ui/menus.js';
+import { addHighscore, clearSave } from './save.js';
+import { sfx } from '../audio/audio.js';
 
 const ps = { x: 0, y: 0 };
 
@@ -16,6 +25,10 @@ export function newGame(seed) {
   G.stats = { kills: 0, trapKills: 0, cause: '' };
   G.bp = {}; G.build = null; G.tick = 0;
   initWorld(G.seed);
+  clearZombies(); clearShots(); clearFx(); G.drops.length = 0; G.flashT = 0; G.shake = 0;
+  G.inv = newInventory();
+  for (const [id, n] of [['knife', 1], ['bandage', 1], ['can', 2], ['water', 1], ['torch', 1]]) addItem(makeItem(id, n));
+  G.inv.weapon = 0;
   const sp = findSpawn();
   G.player = newPlayer(sp.x, sp.y);
   view.camX = G.player.x; view.camY = G.player.y;
@@ -35,5 +48,24 @@ export function update(dt) {
   G.clock += dt;
   updatePlayer(dt);
   updateWorld();
+  updateCombat(dt);
+  updateZombies(dt);
+  updateShots(dt);
+  updateDrops(dt);
+  updateFx(dt);
+  if (G.flashT > 0) G.flashT -= dt;
+  if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 14);
+  updateHud(dt);
+  if (G.player.hp <= 0) die();
   clearActions();
+}
+
+export function daysSurvived() { return Math.floor(G.clock / G.dayLen); }
+function die() {
+  G.mode = 'dead'; G.paused = true; sfx('die');
+  const st = G.stats; st.days = daysSurvived();
+  const rank = addHighscore({ days: st.days, kills: st.kills, traps: st.trapKills, cause: st.cause, seed: G.seed, date: new Date().toISOString().slice(0, 10) });
+  clearSave();
+  document.getElementById('hud').classList.add('hidden');
+  setTimeout(() => showGameOver(rank), 900);
 }
