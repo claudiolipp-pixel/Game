@@ -14,7 +14,7 @@ const OPAQUE = new Uint8Array(16); OPAQUE[O_TREE] = OPAQUE[O_WALL] = 1;
 
 export const W = {
   seed: 1, chunks: new Map(), mods: {}, season: 0, frozen: false,
-  structs: new Map(), hit: null, pcx: 1e9, pcy: 1e9, free: [], dmg: new Map(),
+  smoothGround: true, structs: new Map(), hit: null, pcx: 1e9, pcy: 1e9, free: [], dmg: new Map(),
 };
 export const key = (x, y) => (x + 32768) * 65536 + (y + 32768);
 
@@ -329,6 +329,7 @@ function visRange(v, out) {
 const vr = [0, 0, 0, 0];
 export function drawGround(ctx, v) {
   const s = v.scale; visRange(v, vr);
+  ctx.imageSmoothingEnabled = W.smoothGround;
   let budget = 1;
   for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
     const c = ensureChunk(cx, cy);
@@ -337,6 +338,7 @@ export function drawGround(ctx, v) {
     const dx2 = Math.round((cx + 1) * CPX * s + v.tx), dy2 = Math.round((cy + 1) * CPX * s + v.ty);
     ctx.drawImage(c.canvas, dx, dy, dx2 - dx, dy2 - dy);
   }
+  ctx.imageSmoothingEnabled = true;
 }
 // Weiche Schlagschatten von Bäumen und Gebäuden (Welt-Transform gesetzt, vor den Figuren zeichnen)
 export function drawShadows(ctx, v) {

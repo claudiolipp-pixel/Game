@@ -1,7 +1,7 @@
 // Renderer: Kamera, Welt, Figuren, Overlays.
 import { G } from '../state.js';
 import { CFG } from '../config.js';
-import { settings } from '../core/save.js';
+import { settings, saveSettings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
 import { SPR, HEAD } from './sprites.js';
 import { drawGround, drawRoofs, drawCanopies, drawShadows, T } from '../world/world.js';
@@ -35,11 +35,6 @@ export function resize() {
 // Bildschirmposition des Spielers in CSS-Pixeln (für Maus-Zielen)
 export function playerScreen(out) { out.x = (view.px * view.scale + view.tx) / view.css; out.y = (view.py * view.scale + view.ty) / view.css; }
 
-let vig = null;
-function vignette() {
-  if (!vig) { vig = document.createElement('canvas'); vig.width = vig.height = 128; const x = vig.getContext('2d'), g = x.createRadialGradient(64, 64, 34, 64, 64, 92); g.addColorStop(0, 'rgba(8,10,6,0)'); g.addColorStop(1, 'rgba(8,10,6,0.62)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
-  ctx.drawImage(vig, 0, 0, view.w, view.h);
-}
 function drawSprite(img, x, y, ang, sz) {
   const s = view.scale;
   ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
@@ -48,7 +43,18 @@ function drawSprite(img, x, y, ang, sz) {
   ctx.drawImage(img, -16, -16, 32, 32);
 }
 
+// Automatische Qualitätsanpassung: bleibt die Bildrate länger unter ~37 FPS, erst Bodenglättung aus, dann Auflösung senken
+let slowT = 0;
+function autoQuality(fdt) {
+  if (G.paused || G.mode !== 'play') { slowT = 0; return; }
+  slowT = fdt > 0.027 ? slowT + fdt : Math.max(0, slowT - fdt * 2);
+  if (slowT < 2.5) return;
+  slowT = 0;
+  if (W.smoothGround) W.smoothGround = false;
+  else if (settings.quality > 0.5) { settings.quality = settings.quality > 0.75 ? 0.75 : 0.5; saveSettings(); resize(); }
+}
 export function render(alpha, fdt) {
+  autoQuality(fdt);
   const p = G.player;
   if (!p) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, view.w, view.h); return; }
   const s = view.scale;
@@ -134,7 +140,6 @@ export function render(alpha, fdt) {
   drawRoofs(ctx, view, Math.floor(p.x / T), Math.floor(p.y / T));
   drawWeather(ctx, view, G.paused ? 0 : fdt);
   drawLighting(ctx, view);
-  vignette();
   // schwebende Texte
   ctx.font = 'bold ' + Math.round(6 * s) + 'px monospace'; ctx.textAlign = 'center';
   for (let i = 0; i < texts.length; i++) { const t = texts[i]; if (!t.on) continue; ctx.globalAlpha = Math.min(1, t.life * 2); ctx.fillStyle = '#000'; ctx.fillText(t.txt, t.x * s + view.tx + 1, t.y * s + view.ty + 1); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x * s + view.tx, t.y * s + view.ty); }
