@@ -1,5 +1,5 @@
 // Service Worker (cache-first) – generiert von tools/make-sw.mjs
-const CACHE = 'letzter-winter-a68330087e';
+const CACHE = 'letzter-winter-5ebc4d6bdc';
 const FILES = [
  "./",
  "index.html",
@@ -35,6 +35,7 @@ const FILES = [
  "src/ui/hud.js",
  "src/ui/menus.js",
  "src/ui/minimap.js",
+ "src/ui/tutorial.js",
  "src/world/time.js",
  "src/world/weather.js",
  "src/world/world.js",

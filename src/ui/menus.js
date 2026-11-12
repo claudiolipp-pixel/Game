@@ -1,18 +1,20 @@
 // DOM-Menüs (Overlay): Hauptmenü, Pause, Inventar, Karte, Game Over.
 import { G } from '../state.js';
 import { CFG, ITEMS, RECIPES, BUILD } from '../config.js';
-import { newGame, setPaused } from '../core/game.js';
-import { getHighscores } from '../core/save.js';
+import { newGame, setPaused, saveGame, loadGame } from '../core/game.js';
+import { getHighscores, hasSave, settings, saveSettings } from '../core/save.js';
+import { resize } from '../render/renderer.js';
+import { endTutorial } from './tutorial.js';
 import { SPR, iconCanvas } from '../render/sprites.js';
 import { weight, maxWeight, maxSlots, countItem, removeItem, hasCost, payCost, give, addItem, addTo, makeItem } from '../systems/inventory.js';
-import { startBuild } from '../building/build.js';
+import { startBuild, stopBuild } from '../building/build.js';
 import { ST, removeStruct, skipStructs } from '../building/structures.js';
 import { Z } from '../entities/zombies.js';
 import { toast } from './hud.js';
 import { W } from '../world/world.js';
 import { useItem, dropItem } from '../systems/survival.js';
 import { paintBigMap } from './minimap.js';
-import { sfx } from '../audio/audio.js';
+import { sfx, unlockAudio, setVolume } from '../audio/audio.js';
 
 const ov = () => document.getElementById('overlay');
 export function closeOverlay() { const o = ov(); o.className = ''; o.innerHTML = ''; if (G.mode === 'play') setPaused(false); }
@@ -21,19 +23,66 @@ export function overlayOpen() { return ov().classList.contains('show'); }
 const X = '<button class="close" id="x-close">✖</button>';
 function bindClose(o) { const b = o.querySelector('#x-close'); if (b) b.onclick = () => { sfx('click'); closeOverlay(); }; }
 
+function seedFrom(str) {
+  str = (str || '').trim(); if (!str) return (Math.random() * 2 ** 31) | 0;
+  if (/^\d+$/.test(str)) return parseInt(str, 10) >>> 0;
+  let h = 2166136261; for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619); return h >>> 0;
+}
+function rawOverlay(html) { const o = ov(); o.className = 'show'; o.innerHTML = html; return o; }
 export function showMainMenu() {
-  G.mode = 'menu'; G.paused = true;
+  if (G.mode === 'play') saveGame();
+  G.mode = 'menu'; G.paused = true; stopBuild(); endTutorial();
   document.getElementById('hud').classList.add('hidden');
-  const o = showOverlay(`<div class="panel narrow"><h1>LETZTER WINTER</h1><div class="sub">Endloses Zombie-Survival</div>
-    <button class="btn pri" id="m-new">Neues Spiel</button></div>`);
-  o.querySelector('#m-new').onclick = () => { ov().className = ''; ov().innerHTML = ''; newGame((Math.random() * 2 ** 31) | 0); };
+  const sv = hasSave();
+  const o = rawOverlay(`<div class="panel narrow"><h1>LETZTER WINTER</h1><div class="sub">Endloses Zombie-Survival · Wie viele Tage überlebst du?</div>
+    ${sv ? '<button class="btn pri" id="m-cont">Fortsetzen</button>' : ''}
+    <button class="btn ${sv ? '' : 'pri'}" id="m-new">Neues Spiel</button>
+    <div class="row"><label>Seed (optional)</label><input type="text" id="m-seed" placeholder="zufällig" autocomplete="off" autocapitalize="off"></div>
+    <button class="btn" id="m-hs">Highscores</button>
+    <button class="btn" id="m-set">Einstellungen</button>
+    ${sv ? '<p style="text-align:center">„Neues Spiel“ überschreibt den Spielstand.</p>' : ''}</div>`);
+  if (sv) o.querySelector('#m-cont').onclick = () => { unlockAudio(); ov().className = ''; ov().innerHTML = ''; if (!loadGame()) { toast('Spielstand defekt.'); showMainMenu(); } };
+  o.querySelector('#m-new').onclick = () => { unlockAudio(); const seed = seedFrom(o.querySelector('#m-seed').value); ov().className = ''; ov().innerHTML = ''; newGame(seed); };
+  o.querySelector('#m-hs').onclick = showHighscores;
+  o.querySelector('#m-set').onclick = () => showSettings(showMainMenu);
+}
+function showHighscores() {
+  const l = getHighscores();
+  const o = rawOverlay(`<div class="panel"><h2>Highscores</h2>${l.length ? `<table class="hs"><tr><th>#</th><th>Tage</th><th>Kills</th><th>Fallen</th><th>Todesursache</th><th>Datum</th></tr>${l.map((e, i) => `<tr><td>${i + 1}</td><td><b>${e.days}</b></td><td>${e.kills}</td><td>${e.traps}</td><td>${e.cause || ''}</td><td>${e.date}</td></tr>`).join('')}</table>` : '<p>Noch keine Einträge. Stirb erst einmal.</p>'}
+    <button class="btn" id="h-back">Zurück</button></div>`);
+  o.querySelector('#h-back').onclick = showMainMenu;
+}
+export function showSettings(back) {
+  const st = settings;
+  const o = rawOverlay(`<div class="panel narrow"><h2>Einstellungen</h2>
+    <div class="row"><label>Lautstärke</label><input type="range" id="s-vol" min="0" max="1" step="0.05" value="${st.vol}"></div>
+    <div class="row"><label>Joystick-Größe</label><input type="range" id="s-size" min="0.7" max="1.6" step="0.05" value="${st.stickSize}"></div>
+    <div class="row"><label>Joysticks an fester Position</label><input type="checkbox" id="s-fixed" ${st.stickFixed ? 'checked' : ''}></div>
+    <div class="row"><label>Linkshänder-Modus (Sticks tauschen)</label><input type="checkbox" id="s-lefty" ${st.lefty ? 'checked' : ''}></div>
+    <div class="row"><label>Grafikqualität</label><select id="s-q"><option value="1">Hoch</option><option value="0.75">Mittel</option><option value="0.5">Niedrig (schnell)</option></select></div>
+    <div class="row"><label>Tageslänge (neues Spiel)</label><select id="s-day"><option value="240">4 Minuten</option><option value="480">8 Minuten</option><option value="720">12 Minuten</option><option value="960">16 Minuten</option></select></div>
+    <div class="row"><label>Fallen markieren (du trittst nicht hinein)</label><input type="checkbox" id="s-mark" ${st.markTraps ? 'checked' : ''}></div>
+    <div class="row"><label>Tutorial anzeigen</label><input type="checkbox" id="s-tut" ${st.tutorial ? 'checked' : ''}></div>
+    <button class="btn pri" id="s-back">Fertig</button></div>`);
+  const q = id => o.querySelector(id);
+  q('#s-q').value = String(st.quality); q('#s-day').value = String(st.dayLen);
+  const apply = () => {
+    st.vol = +q('#s-vol').value; st.stickSize = +q('#s-size').value; st.stickFixed = q('#s-fixed').checked; st.lefty = q('#s-lefty').checked;
+    st.quality = +q('#s-q').value; st.dayLen = +q('#s-day').value; st.markTraps = q('#s-mark').checked; st.tutorial = q('#s-tut').checked;
+    saveSettings(); setVolume(st.vol); resize();
+  };
+  o.querySelectorAll('input,select').forEach(e => e.onchange = apply);
+  q('#s-back').onclick = () => { apply(); sfx('click'); back(); };
 }
 
 export function showPause() {
-  const o = showOverlay(`<div class="panel narrow"><h2>Pause</h2>
+  saveGame();
+  const o = showOverlay(`<div class="panel narrow"><h2>Pause</h2><p>Spiel gespeichert. Seed: ${G.seed}</p>
     <button class="btn pri" id="p-res">Weiter</button>
-    <button class="btn" id="p-menu">Hauptmenü</button></div>`);
+    <button class="btn" id="p-set">Einstellungen</button>
+    <button class="btn" id="p-menu">Speichern &amp; Hauptmenü</button></div>`);
   o.querySelector('#p-res').onclick = closeOverlay;
+  o.querySelector('#p-set').onclick = () => showSettings(showPause);
   o.querySelector('#p-menu').onclick = showMainMenu;
 }
 
