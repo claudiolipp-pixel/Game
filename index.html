@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Letzter Winter">
+<meta name="theme-color" content="#0b0d10">
+<title>Letzter Winter</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="game"></canvas>
+
+<div id="hud" class="hidden">
+  <div id="bars">
+    <div class="bar"><i>♥</i><b id="b-hp" style="background:#c33"></b></div>
+    <div class="bar"><i>🍖</i><b id="b-hunger" style="background:#c82"></b></div>
+    <div class="bar"><i>💧</i><b id="b-thirst" style="background:#39c"></b></div>
+    <div class="bar"><i>⚡</i><b id="b-stam" style="background:#9c3"></b></div>
+    <div id="status"></div>
+  </div>
+  <div id="clock"></div>
+  <canvas id="minimap" width="96" height="96"></canvas>
+  <div id="weapon" data-act="reload"></div>
+  <div id="toasts"></div>
+  <div id="btns">
+    <button data-act="interact" id="btn-interact">✋</button>
+    <button data-act="sprint" id="btn-sprint">🏃</button>
+    <button data-act="swap" id="btn-swap">⚔</button>
+    <button data-act="inv" id="btn-inv">🎒</button>
+    <button data-act="build" id="btn-build">🔨</button>
+    <button data-act="light" id="btn-light">🔦</button>
+  </div>
+  <button data-act="pause" id="btn-pause">Ⅱ</button>
+  <div id="buildbar" class="hidden">
+    <button data-act="place">✔ Platzieren</button>
+    <button data-act="rotate">⟳ Drehen</button>
+    <button data-act="cancel">✖ Abbrechen</button>
+  </div>
+</div>
+
+<div id="overlay"></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
