@@ -45,7 +45,7 @@ function drawSprite(img, x, y, ang, sz) {
   ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
   ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.fillRect(x - 7 * sz, y + 2, 14 * sz, 8 * sz); ctx.fillRect(x - 5 * sz, y + 1, 10 * sz, 10 * sz);
   ctx.setTransform(Math.cos(ang) * s * sz, Math.sin(ang) * s * sz, -Math.sin(ang) * s * sz, Math.cos(ang) * s * sz, x * s + view.tx, y * s + view.ty);
-  ctx.drawImage(img, -img.width, -img.height, img.width * 2, img.height * 2);
+  ctx.drawImage(img, -16, -16, 32, 32);
 }
 
 export function render(alpha, fdt) {

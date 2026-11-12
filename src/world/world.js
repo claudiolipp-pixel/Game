@@ -42,6 +42,22 @@ export function groundAt(x, y) {
   return G_GRASS;
 }
 
+// Dörfer: je 6x6-Chunk-Region höchstens ein kleines Dorf (3x3 Chunks). Die Start-Region hat immer eines.
+const VR = 6, vc = { x: 0, y: 0 };
+export function villageCenter(rx, ry, out) {
+  if (hash2(rx, ry, W.seed + 500) > 0.6 && (rx !== 0 || ry !== 0)) return false;
+  for (let k = 0; k < 6; k++) {
+    const x = rx * VR + 1 + Math.floor(hash2(rx + k * 17, ry, W.seed + 501) * (VR - 2)), y = ry * VR + 1 + Math.floor(hash2(rx, ry + k * 17, W.seed + 502) * (VR - 2));
+    out.x = x; out.y = y;
+    let land = 0; for (let j = 0; j < 5; j++) { const gt = groundAt((x + (j === 1) - (j === 2)) * CH + 8, (y + (j === 3) - (j === 4)) * CH + 8); if (gt !== G_WATER && gt !== G_SAND) land++; }
+    if (land >= 4) return true;
+  }
+  return rx === 0 && ry === 0;
+}
+export function isVillage(cx, cy) {
+  if (!villageCenter(Math.floor(cx / VR), Math.floor(cy / VR), vc)) return false;
+  return Math.abs(cx - vc.x) <= 1 && Math.abs(cy - vc.y) <= 1;
+}
 const BSIZE = { house: [7, 6], market: [11, 8], hardware: [10, 8], police: [9, 8], gas: [7, 5], military: [11, 9], farm: [7, 6] };
 const BCRATES = { house: 3, market: 6, hardware: 5, police: 4, gas: 3, military: 6, farm: 3 };
 
@@ -63,13 +79,17 @@ function genChunk(cx, cy) {
     o[i] = ob;
   }
   // Gebäude
-  const gc = g[8 + 8 * CH], h = hash2(cx, cy, sd + 77), h2 = hash2(cx, cy, sd + 78);
+  const gc = g[8 + 8 * CH], h = hash2(cx, cy, sd + 77), h2 = hash2(cx, cy, sd + 78), vil = gc !== G_WATER && isVillage(cx, cy);
   let type = null;
-  if (gc === G_PAVE) {
-    for (let k = 0; k < CH; k++) { if (g[k] === G_PAVE) { g[k] = G_ROAD; o[k] = 0; } if (g[k * CH] === G_PAVE) { g[k * CH] = G_ROAD; o[k * CH] = 0; } }
-    if (h < 0.92) type = h2 < 0.56 ? 'house' : h2 < 0.68 ? 'market' : h2 < 0.79 ? 'hardware' : h2 < 0.88 ? 'police' : 'gas';
-  } else if (gc === G_FARM && h < 0.16) type = 'farm';
+  if (gc === G_PAVE || vil) {
+    if (vil) for (let i = 0; i < CH * CH; i++) if (o[i] === O_TREE && hash2(i, cx * 131 + cy, sd + 5) > 0.3) o[i] = O_NONE;     // Dorf: lichter Baumbestand
+    // Straßen / Dorfwege an den Chunk-Kanten
+    for (let k = 0; k < CH; k++) for (let e = 0; e < 2; e++) { const i = e ? k * CH : k, gt = g[i]; if (gt === G_PAVE || (vil && gt !== G_WATER && gt !== G_SAND)) { g[i] = G_ROAD; o[i] = 0; } }
+    if (vil && gc !== G_PAVE) { if (h < 0.85) type = h2 < 0.62 ? 'house' : h2 < 0.74 ? 'market' : h2 < 0.84 ? 'hardware' : h2 < 0.92 ? 'gas' : 'police'; }
+    else if (h < 0.92) type = h2 < 0.56 ? 'house' : h2 < 0.68 ? 'market' : h2 < 0.79 ? 'hardware' : h2 < 0.88 ? 'police' : 'gas';
+  } else if (gc === G_FARM && h < 0.2) type = 'farm';
   else if ((gc === G_GRASS || gc === G_FOREST) && h < 0.016 && (Math.abs(cx) > 2 || Math.abs(cy) > 2)) type = 'military';
+  else if ((gc === G_GRASS || gc === G_FOREST || gc === G_SWAMP) && h > 0.94) type = 'house';     // einsame Hütte
   if (type) placeBuilding(c, type);
   // gespeicherte Änderungen anwenden
   const m = W.mods[key(cx, cy)];
@@ -176,8 +196,11 @@ export function losClear(x0, y0, x1, y1) {
 }
 
 export function findSpawn() {
+  villageCenter(0, 0, vc);
+  const bx = vc.x * CH + 8, by = (vc.y + 2) * CH + 4;        // knapp südlich des Start-Dorfs
+  W.village = { x: (vc.x * CH + 8) * T, y: (vc.y * CH + 8) * T };
   for (let r = 0; r < 200; r++) for (let a = 0; a < 16; a++) {
-    const tx = Math.round(Math.cos(a / 16 * 6.283) * r * 3), ty = Math.round(Math.sin(a / 16 * 6.283) * r * 3);
+    const tx = bx + Math.round(Math.cos(a / 16 * 6.283) * r * 3), ty = by + Math.round(Math.sin(a / 16 * 6.283) * r * 3);
     const g = groundAt(tx, ty);
     if (g !== G_GRASS && g !== G_FOREST) continue;
     let ok = true;
@@ -196,6 +219,7 @@ function loadAround(px, py) {
   W.pcx = pcx; W.pcy = pcy;
   const R = CFG.LOAD_R;
   for (let y = pcy - R; y <= pcy + R; y++) for (let x = pcx - R; x <= pcx + R; x++) ensureChunk(x, y);
+  for (const c of W.chunks.values()) if (c.canvas && (Math.abs(c.cx - pcx) > 2 || Math.abs(c.cy - pcy) > 2)) { cpool.push(c.canvas); c.canvas = null; c.ctx = null; c.ver = -1; }
   for (const [k, c] of W.chunks) if (Math.abs(c.cx - pcx) > R + 1 || Math.abs(c.cy - pcy) > R + 1) { W.chunks.delete(k); W.free.push(c); if (lastC === c) lastC = null; }
 }
 export function updateWorld() { loadAround(G.player.x, G.player.y); }
@@ -211,37 +235,63 @@ const rnd = () => { rs = (Math.imul(rs, 1664525) + 1013904223) >>> 0; return rs 
 const gAt = (c, lx, ly) => (lx >= 0 && ly >= 0 && lx < CH && ly < CH) ? c.g[lx + ly * CH] : groundAt(c.cx * CH + lx, c.cy * CH + ly);
 const isWall = ob => ob === O_WALL || ob === O_WINDOW;
 
+// --- Pixelweises Boden-Rendering: Biom-Grenzen werden mit weichem Rauschen verschoben (organisch statt Kacheln) ---
+const CS = CH * T, DS = 256, cpool = [];
+const dispX = new Int8Array(DS * DS), dispY = new Int8Array(DS * DS), mott = new Int8Array(DS * DS);
+(function initNoiseTables() {
+  let r = 9001; const rn = () => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r / 4294967296; };
+  const layer = cells => {      // kachelbares Value-Noise
+    const lat = new Float32Array(cells * cells); for (let i = 0; i < lat.length; i++) lat[i] = rn() * 2 - 1;
+    const out = new Float32Array(DS * DS), cs = DS / cells;
+    for (let y = 0; y < DS; y++) for (let x = 0; x < DS; x++) {
+      const fx = x / cs, fy = y / cs, x0 = fx | 0, y0 = fy | 0, tx = fx - x0, ty = fy - y0, u = tx * tx * (3 - 2 * tx), v = ty * ty * (3 - 2 * ty);
+      const a = lat[x0 % cells + (y0 % cells) * cells], b = lat[(x0 + 1) % cells + (y0 % cells) * cells], c2 = lat[x0 % cells + ((y0 + 1) % cells) * cells], d = lat[(x0 + 1) % cells + ((y0 + 1) % cells) * cells];
+      out[x + y * DS] = a + (b - a) * u + (c2 - a + (a - b - c2 + d) * u) * v;
+    }
+    return out;
+  };
+  const a1 = layer(8), a2 = layer(32), b1 = layer(8), b2 = layer(32), m1 = layer(16), m2 = layer(64);
+  for (let i = 0; i < DS * DS; i++) { dispX[i] = Math.round((a1[i] * 0.72 + a2[i] * 0.28) * 15); dispY[i] = Math.round((b1[i] * 0.72 + b2[i] * 0.28) * 15); mott[i] = Math.round((m1[i] * 0.6 + m2[i] * 0.4) * 11); }
+})();
+const NAT = new Uint8Array([1, 1, 1, 1, 1, 1, 0, 0, 0]);      // natürliche Böden (weiche Kanten)
+const RGB = [];
+function rgbOf(s) { if (!RGB[s]) RGB[s] = GCOL.map(k => { const n = parseInt(PAL[s][k].slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; }); return RGB[s]; }
+let pimg = null, p32 = null;
+const gpad = new Uint8Array((CH + 2) * (CH + 2));
+
 function renderChunk(c) {
-  if (!c.canvas) { c.canvas = document.createElement('canvas'); c.canvas.width = c.canvas.height = CH * 16; c.ctx = c.canvas.getContext('2d', { alpha: false }); }
-  const x = c.ctx, s = W.season, p = PAL[s], ts = SPR.tiles[s], tx_ = tex(s), type = c.bld ? c.bld.type : 'house';
+  if (!c.canvas) { c.canvas = cpool.pop() || document.createElement('canvas'); c.canvas.width = c.canvas.height = CS; c.ctx = c.canvas.getContext('2d', { alpha: false }); }
+  const x = c.ctx, s = W.season, p = PAL[s], ts = SPR.tiles[s], tx_ = tex(s), cols = rgbOf(s), type = c.bld ? c.bld.type : 'house', PW = CH + 2;
   const trees = c.trees || (c.trees = []); trees.length = 0;
+  if (!pimg) { pimg = x.createImageData(CS, CS); p32 = new Uint32Array(pimg.data.buffer); }
+  for (let ly = -1; ly <= CH; ly++) for (let lx = -1; lx <= CH; lx++) gpad[lx + 1 + (ly + 1) * PW] = gAt(c, lx, ly);
+  const wx0 = c.cx * CS, wy0 = c.cy * CS;
+  for (let py = 0; py < CS; py++) {
+    const wy = wy0 + py, row = ((py >> 5) + 1) * PW + 1, dy8 = (wy & 255) << 8, my8 = ((wy + 37) & 255) << 8;
+    for (let px = 0; px < CS; px++) {
+      const wx = wx0 + px;
+      let g = gpad[row + (px >> 5)];
+      if (NAT[g]) { const di = (wx & 255) + dy8, g1 = gpad[(((py + dispY[di]) >> 5) + 1) * PW + 1 + ((px + dispX[di]) >> 5)]; if (NAT[g1]) g = g1; }
+      let h = Math.imul(wx, 374761393) ^ Math.imul(wy, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177);
+      let v = mott[((wx + 91) & 255) + my8] + ((h >>> 29) - 4);
+      if (g === G_FARM) { if ((wy & 7) < 2) v -= 13; }
+      else if (g === G_WATER) v = (v >> 1) + (((wy + (mott[(wx & 255) + dy8] >> 1)) & 7) === 0 ? 9 : 0);
+      else if (g === G_PAVE) { if ((wx & 31) === 0 || (wy & 31) === 0 || ((wx & 31) === 16 && (wy & 32))) v -= 15; }
+      else if (g === G_FLOOR) { v >>= 1; if ((wy & 15) === 0 || ((wx + ((wy >> 4) & 1) * 16) & 31) === 0) v -= 20; }
+      else if (g === G_ROAD) v += ((h >>> 20) & 31) === 0 ? -22 : 0;
+      const cc = cols[g]; let r = cc[0] + v, gg = cc[1] + v, b = cc[2] + v;
+      p32[px + py * CS] = 0xff000000 | ((b < 0 ? 0 : b > 255 ? 255 : b) << 16) | ((gg < 0 ? 0 : gg > 255 ? 255 : gg) << 8) | (r < 0 ? 0 : r > 255 ? 255 : r);
+    }
+  }
+  x.putImageData(pimg, 0, 0);
   for (let ly = 0; ly < CH; ly++) for (let lx = 0; lx < CH; lx++) {
-    const i = lx + ly * CH, g = c.g[i], px = lx * 16, py = ly * 16, tx = c.cx * CH + lx, ty = c.cy * CH + ly;
+    const i = lx + ly * CH, g = c.g[i], px = lx * T, py = ly * T, tx = c.cx * CH + lx, ty = c.cy * CH + ly;
     const h = hash2(tx, ty, 9), t = tx_[g];
     rs = ((h * 4294967296) >>> 0) | 1;
-    x.fillStyle = t[0]; x.fillRect(px, py, 16, 16);
-    if (g === G_GRASS || g === G_FOREST || g === G_SWAMP || g === G_SAND) {
-      for (let k = 0; k < 9; k++) { x.fillStyle = t[1 + (k & 1)]; x.fillRect(px + (rnd() * 15 | 0), py + (rnd() * 16 | 0), 1 + (rnd() * 2 | 0), 1); }
-      if (g !== G_SAND) for (let k = 0; k < 3; k++) { const gx = px + (rnd() * 15 | 0), gy = py + 1 + (rnd() * 13 | 0); x.fillStyle = t[1]; x.fillRect(gx, gy, 1, 2); x.fillStyle = t[2]; x.fillRect(gx + 1, gy - 1, 1, 2); }
-      if (g === G_GRASS && h > 0.94 && s < 2) { x.fillStyle = p.flower; x.fillRect(px + 3 + (rnd() * 10 | 0), py + 3 + (rnd() * 10 | 0), 1, 1); }
-      if (g === G_SWAMP && h > 0.7) { x.fillStyle = s === 3 ? p.water : shade(p.water, 0.7); x.fillRect(px + 3, py + 5, 9, 5); x.fillRect(px + 5, py + 4, 5, 7); }
-    } else if (g === G_FARM) { x.fillStyle = t[1]; for (let k = 1; k < 16; k += 4) x.fillRect(px, py + k, 16, 1); for (let k = 0; k < 4; k++) { x.fillStyle = t[2]; x.fillRect(px + (rnd() * 15 | 0), py + (rnd() * 4 | 0) * 4 + 3, 2, 1); } }
-    else if (g === G_WATER) { x.fillStyle = t[1]; x.fillRect(px + (rnd() * 8 | 0), py + (rnd() * 15 | 0), 7, 1); x.fillStyle = p.waterB; x.fillRect(px + (rnd() * 9 | 0), py + (rnd() * 15 | 0), 5, 1); if (h > 0.5) x.fillRect(px + (rnd() * 11 | 0), py + (rnd() * 15 | 0), 3, 1); }
-    else if (g === G_ROAD) { for (let k = 0; k < 7; k++) { x.fillStyle = t[1 + (k & 1)]; x.fillRect(px + (rnd() * 14 | 0), py + (rnd() * 15 | 0), 1 + (rnd() * 3 | 0), 1); } if (h > 0.85) { x.fillStyle = shade(p.road, 0.7); x.fillRect(px + 4, py + 5, 1, 6); x.fillRect(px + 5, py + 10, 4, 1); } }
-    else if (g === G_PAVE) { x.fillStyle = t[1]; x.fillRect(px, py + 15, 16, 1); x.fillRect(px + 15, py, 1, 16); x.fillRect(px + 7, py, 1, 16); for (let k = 0; k < 4; k++) { x.fillStyle = t[1 + (k & 1)]; x.fillRect(px + (rnd() * 15 | 0), py + (rnd() * 15 | 0), 1, 1); } }
-    else if (g === G_FLOOR) { x.fillStyle = t[1]; x.fillRect(px, py + 7, 16, 1); x.fillRect(px, py + 15, 16, 1); x.fillRect(px + (ly & 1 ? 4 : 11), py, 1, 16); x.fillStyle = t[2]; x.fillRect(px + (rnd() * 13 | 0), py + 2 + (rnd() * 3 | 0), 3, 1); }
-    // weiche Biom-Kanten: Nachbarfarbe "wächst" hinein
-    if (g !== G_FLOOR) for (let d = 0; d < 4; d++) {
-      const ng = gAt(c, lx + (d === 0) - (d === 1), ly + (d === 2) - (d === 3));
-      if (ng === g || ng === G_FLOOR || ng === G_ROAD) continue;
-      if (g !== G_ROAD && PRI[ng] <= PRI[g]) continue;
-      const n = g === G_ROAD ? 5 : 14; x.fillStyle = tx_[ng][0];
-      for (let k = 0; k < n; k++) {
-        const along = rnd() * 16 | 0, depth = (rnd() * rnd() * 6) | 0;
-        if (d === 0) x.fillRect(px + 15 - depth, py + along, 1, 1); else if (d === 1) x.fillRect(px + depth, py + along, 1, 1);
-        else if (d === 2) x.fillRect(px + along, py + 15 - depth, 1, 1); else x.fillRect(px + along, py + depth, 1, 1);
-      }
-    }
+    if (g === G_GRASS || g === G_FOREST || g === G_SWAMP) {        // Grashalme
+      for (let k = 0; k < 5; k++) { const gx = px + 4 + (rnd() * 24 | 0), gy = py + 5 + (rnd() * 22 | 0); x.fillStyle = t[1]; x.fillRect(gx, gy, 1, 3); x.fillRect(gx + 2, gy + 1, 1, 2); x.fillStyle = t[2]; x.fillRect(gx + 1, gy - 1, 1, 3); }
+      if (g === G_GRASS && h > 0.94 && s < 2) { x.fillStyle = p.flower; x.fillRect(px + 6 + (rnd() * 20 | 0), py + 6 + (rnd() * 20 | 0), 2, 2); }
+    } else if (g === G_ROAD && h > 0.86) { x.fillStyle = shade(p.road, 0.72); const gx = px + 6 + (rnd() * 14 | 0), gy = py + 6 + (rnd() * 10 | 0); x.fillRect(gx, gy, 1, 9); x.fillRect(gx + 1, gy + 8, 6, 1); x.fillRect(gx - 4, gy + 3, 4, 1); }
     const ob = c.o[i]; let spr = null;
     switch (ob) {
       case O_TREE: spr = ts.tree; trees.push(i); break;
@@ -251,13 +301,13 @@ function renderChunk(c) {
       case O_WALL: case O_WINDOW: {
         const south = ly + 1 >= CH || !isWall(c.o[i + CH]);     // Südseite sichtbar → Fassade
         spr = south ? (ob === O_WINDOW ? ts.win[type] : ts.wall[type]) : ts.wallTop[type];
-        if (!south && ob === O_WINDOW) { x.drawImage(spr, px, py); x.fillStyle = '#4a6470'; x.fillRect(px + 5, py + 4, 6, 8); spr = null; }
+        if (!south && ob === O_WINDOW) { x.drawImage(spr, px, py); x.fillStyle = '#4a6470'; x.fillRect(px + 10, py + 8, 12, 16); spr = null; }
         break;
       }
       case O_CRATE: spr = ts.crate; break; case O_CRATE_O: spr = ts.crateO; break;
     }
     if (spr) x.drawImage(spr, px, py);
-    if (g === G_FLOOR && !isWall(ob) && ly > 0 && isWall(c.o[i - CH])) { x.fillStyle = 'rgba(0,0,0,0.28)'; x.fillRect(px, py, 16, 4); }   // Wandschatten innen
+    if (g === G_FLOOR && !isWall(ob) && ly > 0 && isWall(c.o[i - CH])) { x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px, py, 32, 7); x.fillStyle = 'rgba(0,0,0,0.14)'; x.fillRect(px, py + 7, 32, 5); }   // Wandschatten innen
   }
   c.ver = s;
 }
@@ -270,10 +320,10 @@ function visRange(v, out) {
 const vr = [0, 0, 0, 0];
 export function drawGround(ctx, v) {
   const s = v.scale; visRange(v, vr);
-  let budget = 2;
+  let budget = 1;
   for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
     const c = ensureChunk(cx, cy);
-    if (c.ver !== W.season && (!c.canvas || c.ver === -1 || budget-- > 0)) renderChunk(c);
+    if (c.ver !== W.season && (!c.canvas || budget-- > 0)) renderChunk(c);
     const dx = Math.round(cx * CPX * s + v.tx), dy = Math.round(cy * CPX * s + v.ty);
     const dx2 = Math.round((cx + 1) * CPX * s + v.tx), dy2 = Math.round((cy + 1) * CPX * s + v.ty);
     ctx.drawImage(c.canvas, dx, dy, dx2 - dx, dy2 - dy);
@@ -289,7 +339,7 @@ export function drawCanopies(ctx, v, px, py) {
     for (let k = 0; k < tr.length; k++) {
       const i = tr[k], wx = (cx * CH + (i & 15)) * T + 16, wy = (cy * CH + (i >> 4)) * T + 16;
       ctx.globalAlpha = (px > wx - 24 && px < wx + 24 && py > wy - 46 && py < wy + 8) ? 0.4 : 1;
-      ctx.drawImage(cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], wx - 24, wy - 40, 48, 48);
+      ctx.drawImage(cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], wx - 27, wy - 44, 54, 54);
     }
   }
   ctx.globalAlpha = 1;

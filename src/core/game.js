@@ -11,7 +11,7 @@ import { updateShots, clearShots } from '../entities/projectiles.js';
 import { updateFx, clearFx } from '../entities/fx.js';
 import { updateCombat } from '../systems/combat.js';
 import { newInventory, addItem, makeItem, updateDrops } from '../systems/inventory.js';
-import { updateHud } from '../ui/hud.js';
+import { updateHud, toast } from '../ui/hud.js';
 import { showGameOver, showInventory, showPause, showMap, showCraft } from '../ui/menus.js';
 import { updateStructs, clearStructs } from '../building/structures.js';
 import { updateBuild, stopBuild } from '../building/build.js';
@@ -56,6 +56,11 @@ export function newGame(seed, sv) {
   view.camX = G.player.x; view.camY = G.player.y;
   G.mode = 'play'; setPaused(false);
   endTutorial(); if (!sv) startTutorial();
+  if (!sv && W.village) {
+    const dx = W.village.x - G.player.x, dy = W.village.y - G.player.y, a = Math.atan2(dy, dx) / Math.PI * 4;
+    const dir = ['Osten', 'Südosten', 'Süden', 'Südwesten', 'Westen', 'Nordwesten', 'Norden', 'Nordosten'][((Math.round(a) % 8) + 8) % 8];
+    toast('Ein kleines Dorf liegt ganz in der Nähe im ' + dir + ' – Häuser betreten und Kisten mit ✋ plündern.');
+  }
 }
 
 export function setPaused(v) {

@@ -2,7 +2,7 @@
 export const CFG = {
   TILE: 32,            // Welt-Einheiten pro Kachel
   CHUNK: 16,           // Kacheln pro Chunk-Kante
-  VIEW_H: 430,         // sichtbare Welt-Höhe in Einheiten (Zoom)
+  VIEW_H: 470,         // sichtbare Welt-Höhe in Einheiten (Zoom)
   LOAD_R: 3,           // Chunk-Laderadius
   DAY_LEN: 480,        // Sekunden pro Spieltag (Standard, in Einstellungen änderbar)
   START_HOUR: 7,

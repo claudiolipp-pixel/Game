@@ -5,6 +5,25 @@ export function mk(w, h, fn) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
   const x = c.getContext('2d'); x.imageSmoothingEnabled = false; fn(x, w, h); return c;
 }
+// Verfeinert ein 16er-Sprite auf doppelte Auflösung: EPX-Glättung der Kanten + leichte Körnung (kein Klötzchen-Look)
+export function up(src) {
+  const w = src.width, h = src.height, sd = src.getContext('2d').getImageData(0, 0, w, h), a = new Uint32Array(sd.data.buffer);
+  const out = document.createElement('canvas'); out.width = w * 2; out.height = h * 2;
+  const ox = out.getContext('2d'), od = ox.createImageData(w * 2, h * 2), o = new Uint32Array(od.data.buffer), d8 = od.data;
+  const at = (x, y) => a[Math.min(w - 1, Math.max(0, x)) + Math.min(h - 1, Math.max(0, y)) * w];
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
+    const P = at(x, y), A = at(x, y - 1), B = at(x + 1, y), C = at(x - 1, y), D = at(x, y + 1), i = x * 2 + y * 2 * w * 2;
+    o[i] = (C === A && C !== D && A !== B) ? A : P; o[i + 1] = (A === B && A !== C && B !== D) ? B : P;
+    o[i + w * 2] = (D === C && D !== B && C !== A) ? C : P; o[i + w * 2 + 1] = (B === D && B !== A && D !== C) ? D : P;
+  }
+  let r = 12345 + w * 7;
+  for (let i = 0; i < o.length; i++) {
+    r = (Math.imul(r, 1664525) + 1013904223) >>> 0; if (d8[i * 4 + 3] < 200) continue;
+    const f = 0.93 + (r >>> 24) / 255 * 0.14;
+    d8[i * 4] = Math.min(255, d8[i * 4] * f); d8[i * 4 + 1] = Math.min(255, d8[i * 4 + 1] * f); d8[i * 4 + 2] = Math.min(255, d8[i * 4 + 2] * f);
+  }
+  ox.putImageData(od, 0, 0); return out;
+}
 const R = (x, col, a, b, w, h) => { x.fillStyle = col; x.fillRect(a, b, w, h); };
 function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);
@@ -15,28 +34,62 @@ function shade(hex, f) {
 export { shade };
 
 // ---------- Figuren (Blick nach rechts, 16x16) ----------
-function humanoid(body, skin, hair, zombie) {
-  return mk(16, 16, x => {
-    R(x, shade(body, 0.7), 5, 2, 6, 12); R(x, body, 5, 3, 6, 10); R(x, body, 6, 2, 4, 12);
-    if (zombie) { R(x, skin, 9, 2, 5, 2); R(x, skin, 9, 12, 5, 2); R(x, shade(skin, 0.7), 13, 2, 1, 2); R(x, shade(skin, 0.7), 13, 12, 1, 2); }
-    else { R(x, body, 8, 2, 3, 2); R(x, body, 8, 12, 3, 2); R(x, skin, 11, 3, 2, 2); R(x, skin, 11, 11, 2, 2); }
-    R(x, hair, 5, 5, 3, 6); R(x, skin, 7, 5, 4, 6); R(x, shade(skin, 0.8), 10, 6, 1, 4);
-    if (zombie) { R(x, '#300', 10, 6, 1, 1); R(x, '#300', 10, 9, 1, 1); }
+let fseed = 1;
+const frnd = () => { fseed = (Math.imul(fseed, 1664525) + 1013904223) >>> 0; return fseed / 4294967296; };
+// Figur von oben (Blick nach rechts, 32x32): runde Formen, Rand-Schattierung, dunkle Kontur
+function humanoid(body, skin, hair, zombie, seed) {
+  return mk(32, 32, x => {
+    fseed = seed || 7; const buf = new Array(1024).fill(null);
+    const put = (cx, cy, rx, ry, col) => {
+      for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let xx = Math.floor(cx - rx); xx <= cx + rx; xx++) {
+        if (xx < 0 || y < 0 || xx > 31 || y > 31) continue;
+        const d = ((xx - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
+        if (d <= 1) buf[xx + y * 32] = shade(col, (d > 0.7 ? 0.72 : d < 0.22 ? 1.12 : 0.95) + frnd() * 0.08);
+      }
+    };
+    const limb = (x0, y0, x1, y1, r, c0, c1, cut) => { for (let t = 0; t <= 1.001; t += 0.07) put(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, t > cut ? c1 : c0); };
+    if (zombie) { limb(14, 8, 27, 10.5, 2.3, body, skin, 0.35); limb(14, 24, 26, 20.5, 2.3, body, skin, 0.5); }
+    else { limb(14, 8, 22, 11, 2.4, body, skin, 0.78); limb(14, 24, 22, 21, 2.4, body, skin, 0.78); put(10, 16, 4, 6.5, shade(body, 0.55)); }
+    put(14, 16, 5.6, 9.2, body);
+    if (zombie) for (let i = 0; i < 9; i++) { const xx = 10 + (frnd() * 8 | 0), y = 9 + (frnd() * 14 | 0); if (buf[xx + y * 32]) buf[xx + y * 32] = frnd() < 0.5 ? '#4a1410' : shade(body, 0.55); }
+    put(17.5, 16, 5.2, 5.2, skin);
+    put(15.2, 16, zombie ? 3.2 : 4.2, zombie ? 4.2 : 5.3, hair);
+    if (zombie) { buf[21 + 14 * 32] = '#2a0606'; buf[21 + 18 * 32] = '#2a0606'; buf[22 + 16 * 32] = '#3a0a0a'; }
+    for (let i = 0; i < 1024; i++) {
+      if (buf[i]) { x.fillStyle = buf[i]; x.fillRect(i & 31, i >> 5, 1, 1); continue; }
+      const xx = i & 31, y = i >> 5;
+      if ((xx > 0 && buf[i - 1]) || (xx < 31 && buf[i + 1]) || (y > 0 && buf[i - 32]) || (y < 31 && buf[i + 32])) { x.fillStyle = 'rgba(18,14,10,0.8)'; x.fillRect(xx, y, 1, 1); }
+    }
   });
 }
+// Unregelmäßiger, schattierter Klecks (Fels, Busch) mit Bodenschatten
+function blob(size, rx, ry, hi, mid, lo, seed, dots) {
+  return mk(size, size, x => {
+    fseed = seed; const c = size / 2;
+    x.fillStyle = 'rgba(0,0,0,0.25)'; x.beginPath(); x.ellipse(c + 2, c + 4, rx, ry * 0.8, 0, 0, 6.283); x.fill();
+    for (let y = 0; y < size; y++) for (let xx = 0; xx < size; xx++) {
+      const dx = (xx - c + 0.5) / rx, dy = (y - c + 1.5) / ry, d = Math.sqrt(dx * dx + dy * dy) + frnd() * 0.16;
+      if (d > 1) continue;
+      const lit = (-dx - dy) * 0.55 + frnd() * 0.45;
+      x.fillStyle = d > 0.9 ? shade(lo, 0.75) : lit > 0.5 ? hi : lit > 0 ? mid : lo; x.fillRect(xx, y, 1, 1);
+    }
+    if (dots) for (let i = 0; i < 7; i++) { const a = frnd() * 6.283, r = frnd() * 0.65; x.fillStyle = dots; x.fillRect(c + Math.cos(a) * rx * r | 0, c - 1 + Math.sin(a) * ry * r | 0, 2, 2); x.fillStyle = shade(dots, 1.4); x.fillRect(c + Math.cos(a) * rx * r | 0, c - 1 + Math.sin(a) * ry * r | 0, 1, 1); }
+  });
+}
+const ZBODY = { walker: '#5a5a4a', runner: '#6a5038', crawler: '#3a3e34', screamer: '#8a8a88', brute: '#4a3434' };
 export const SPR = { z: {}, zf: {}, item: {}, build: {}, tiles: [] };
 
 export function initSprites() {
-  SPR.player = humanoid('#3b5f8a', '#e0b890', '#4a3020', false);
+  SPR.player = humanoid('#3d4f5c', '#c9a27e', '#3a2a1c', false, 3);
   for (const k in ZT) {
-    SPR.z[k] = humanoid(shade(ZT[k].col, 0.75), ZT[k].col, shade(ZT[k].col, 0.5), true);
-    SPR.zf[k] = humanoid('#7fa8c8', '#bfe0f0', '#e8f4fa', true);   // Frost-Variante
+    SPR.z[k] = humanoid(ZBODY[k] || '#5a5248', ZT[k].col, shade(ZT[k].col, 0.45), true, 11 + k.length * 13);
+    SPR.zf[k] = humanoid('#6f8ea4', '#b4d2e0', '#e2eef4', true, 5 + k.length * 7);   // Frost-Variante
   }
-  for (const k of ['deer', 'rabbit']) SPR.z[k] = SPR.zf[k] = mk(16, 16, x => {
+  for (const k of ['deer', 'rabbit']) SPR.z[k] = SPR.zf[k] = up(mk(16, 16, x => {
     const c = ZT[k].col; R(x, shade(c, 0.8), 3, 5, 9, 6); R(x, c, 4, 6, 7, 4); R(x, c, 11, 6, 3, 4); R(x, shade(c, 0.6), 13, 6, 1, 1); R(x, shade(c, 0.6), 13, 9, 1, 1);
     R(x, shade(c, 0.6), 4, 4, 2, 1); R(x, shade(c, 0.6), 4, 11, 2, 1); R(x, shade(c, 0.6), 9, 4, 2, 1); R(x, shade(c, 0.6), 9, 11, 2, 1); R(x, '#eee', 2, 7, 1, 2);
     if (k === 'deer') { R(x, '#d8c8a0', 12, 4, 1, 2); R(x, '#d8c8a0', 12, 10, 1, 2); }
-  });
+  }));
   SPR.light = mk(128, 128, x => {
     const g = x.createRadialGradient(64, 64, 4, 64, 64, 64);
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.7)'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -49,15 +102,16 @@ export function initSprites() {
   });
   SPR.bag = mk(8, 8, x => { R(x, '#8a6a3a', 1, 2, 6, 5); R(x, '#a8844a', 2, 3, 4, 3); R(x, '#5a4020', 3, 1, 2, 1); });
   SPR.mark = mk(8, 8, x => { R(x, '#ffcc00', 3, 0, 2, 5); R(x, '#ffcc00', 3, 6, 2, 2); });
-  for (const id in ITEMS) SPR.item[id] = mk(16, 16, x => drawItem(x, id));
-  for (const id in BUILD) SPR.build[id] = mk(16, 16, x => drawBuild(x, id));
-  SPR.build.beartrap_shut = mk(16, 16, x => { R(x, '#555', 3, 7, 10, 2); R(x, '#888', 4, 6, 8, 1); R(x, '#888', 4, 9, 8, 1); R(x, '#333', 7, 7, 2, 2); });
-  SPR.build.plot1 = mk(16, 16, x => { drawBuild(x, 'plot'); for (let i = 0; i < 3; i++) R(x, '#6c4', 3 + i * 4, 6, 1, 2), R(x, '#6c4', 5 + i * 4, 10, 1, 2); });
-  SPR.build.plot2 = mk(16, 16, x => { drawBuild(x, 'plot'); for (let i = 0; i < 3; i++) { R(x, '#4a3', 2 + i * 4, 4, 3, 4); R(x, '#e84', 3 + i * 4, 5, 1, 1); R(x, '#4a3', 4 + i * 4, 9, 3, 4); R(x, '#e84', 5 + i * 4, 10, 1, 1); } });
-  SPR.build.campfire_off = mk(16, 16, x => { ring(x); R(x, '#333', 6, 6, 4, 4); });
-  SPR.build.gas_burn = mk(16, 16, x => { R(x, '#f80', 2, 3, 12, 10); R(x, '#fc3', 4, 5, 8, 6); R(x, '#fff3a0', 6, 7, 4, 3); });
+  for (const id in ITEMS) SPR.item[id] = up(mk(16, 16, x => drawItem(x, id)));
+  for (const id in BUILD) SPR.build[id] = up(mk(16, 16, x => drawBuild(x, id)));
+  SPR.build.beartrap_shut = up(mk(16, 16, x => { R(x, '#555', 3, 7, 10, 2); R(x, '#888', 4, 6, 8, 1); R(x, '#888', 4, 9, 8, 1); R(x, '#333', 7, 7, 2, 2); }));
+  SPR.build.plot1 = up(mk(16, 16, x => { drawBuild(x, 'plot'); for (let i = 0; i < 3; i++) R(x, '#6c4', 3 + i * 4, 6, 1, 2), R(x, '#6c4', 5 + i * 4, 10, 1, 2); }));
+  SPR.build.plot2 = up(mk(16, 16, x => { drawBuild(x, 'plot'); for (let i = 0; i < 3; i++) { R(x, '#4a3', 2 + i * 4, 4, 3, 4); R(x, '#e84', 3 + i * 4, 5, 1, 1); R(x, '#4a3', 4 + i * 4, 9, 3, 4); R(x, '#e84', 5 + i * 4, 10, 1, 1); } }));
+  SPR.build.campfire_off = up(mk(16, 16, x => { ring(x); R(x, '#333', 6, 6, 4, 4); }));
+  SPR.build.gas_burn = up(mk(16, 16, x => { R(x, '#f80', 2, 3, 12, 10); R(x, '#fc3', 4, 5, 8, 6); R(x, '#fff3a0', 6, 7, 4, 3); }));
   SPR.lvl = [null, mk(16, 16, x => { R(x, '#b8bcc4', 0, 0, 2, 2); R(x, '#b8bcc4', 14, 0, 2, 2); R(x, '#b8bcc4', 0, 14, 2, 2); R(x, '#b8bcc4', 14, 14, 2, 2); }),
     mk(16, 16, x => { R(x, '#3c4048', 0, 0, 16, 1); R(x, '#3c4048', 0, 15, 16, 1); R(x, '#3c4048', 0, 0, 1, 16); R(x, '#3c4048', 15, 0, 1, 16); R(x, '#ffd060', 0, 0, 2, 2); R(x, '#ffd060', 14, 0, 2, 2); R(x, '#ffd060', 0, 14, 2, 2); R(x, '#ffd060', 14, 14, 2, 2); })];
+  SPR.lvl[1] = up(SPR.lvl[1]); SPR.lvl[2] = up(SPR.lvl[2]); SPR.bag = up(SPR.bag);
   for (let s = 0; s < 4; s++) SPR.tiles[s] = makeTileSet(s);
 }
 
@@ -93,9 +147,9 @@ function drawBuild(x, id) {
 // Drehbare Turm-Köpfe (Blick nach rechts)
 export const HEAD = {};
 export function initHeads() {
-  HEAD.xbow = mk(16, 16, x => { R(x, '#3e2a16', 4, 7, 10, 2); R(x, '#888', 10, 2, 1, 12); R(x, '#888', 9, 3, 1, 2); R(x, '#888', 9, 11, 1, 2); R(x, '#ccc', 12, 7, 3, 2); });
-  HEAD.flamer = mk(16, 16, x => { R(x, '#333', 5, 6, 9, 4); R(x, '#f80', 14, 7, 2, 2); R(x, '#a33', 3, 5, 4, 6); });
-  HEAD.mg = mk(16, 16, x => { R(x, '#222', 5, 7, 11, 2); R(x, '#444', 4, 5, 5, 6); R(x, '#333', 9, 6, 2, 4); });
+  HEAD.xbow = up(mk(16, 16, x => { R(x, '#3e2a16', 4, 7, 10, 2); R(x, '#888', 10, 2, 1, 12); R(x, '#888', 9, 3, 1, 2); R(x, '#888', 9, 11, 1, 2); R(x, '#ccc', 12, 7, 3, 2); }));
+  HEAD.flamer = up(mk(16, 16, x => { R(x, '#333', 5, 6, 9, 4); R(x, '#f80', 14, 7, 2, 2); R(x, '#a33', 3, 5, 4, 6); }));
+  HEAD.mg = up(mk(16, 16, x => { R(x, '#222', 5, 7, 11, 2); R(x, '#444', 4, 5, 5, 6); R(x, '#333', 9, 6, 2, 4); }));
 }
 
 function drawItem(x, id) {
@@ -151,48 +205,49 @@ export const ROOFCOL = { house: '#4e5052', market: '#3e4a52', hardware: '#5a4a34
 let lcg = 1;
 const rnd = () => { lcg = (Math.imul(lcg, 1664525) + 1013904223) >>> 0; return lcg / 4294967296; };
 function canopy(p, s, variant) {
-  return mk(24, 24, x => {
+  return mk(48, 48, x => {
     lcg = 77 + variant * 131 + s * 17;
-    const hi = shade(p.tree, 1.18), lo = shade(p.treeB, 0.8);
-    for (let y = 0; y < 24; y++) for (let xx = 0; xx < 24; xx++) {
-      const dx = xx - 11.5, dy = (y - 11) * 1.08, d = Math.sqrt(dx * dx + dy * dy) + rnd() * 2.2;
-      if (d > 11.2) continue;
-      const lit = (-dx - dy) / 16 + rnd() * 0.5;      // Licht von oben links
-      x.fillStyle = d > 10 ? lo : lit > 0.55 ? hi : lit > 0.05 ? p.tree : lit > -0.4 ? p.treeB : lo;
+    const hi = shade(p.tree, 1.2), lo = shade(p.treeB, 0.72), cl = [];
+    for (let i = 0; i < 9; i++) cl.push(8 + rnd() * 32, 8 + rnd() * 30);      // Blattbüschel
+    for (let y = 0; y < 48; y++) for (let xx = 0; xx < 48; xx++) {
+      const dx = xx - 23.5, dy = (y - 22.5) * 1.06, d = Math.sqrt(dx * dx + dy * dy) + rnd() * 4.5 + Math.sin(Math.atan2(dy, dx) * 5 + variant * 2) * 1.6;
+      if (d > 21.5) continue;
+      let near = 99; for (let i = 0; i < cl.length; i += 2) { const q = Math.hypot(xx - cl[i], y - cl[i + 1]); if (q < near) near = q; }
+      const lit = (-dx - dy) / 34 + rnd() * 0.5 - near * 0.045 + 0.2;
+      x.fillStyle = d > 19.5 ? lo : lit > 0.5 ? hi : lit > 0.08 ? p.tree : lit > -0.3 ? p.treeB : lo;
       x.fillRect(xx, y, 1, 1);
     }
-    for (let i = 0; i < 10; i++) { x.fillStyle = lo; x.fillRect(4 + (rnd() * 16 | 0), 5 + (rnd() * 15 | 0), 1, 1); }
-    if (s === 3) for (let i = 0; i < 26; i++) { x.fillStyle = '#f4f8fa'; x.fillRect(3 + (rnd() * 17 | 0), 2 + (rnd() * 11 | 0), 2, 1); }
+    if (s === 3) for (let i = 0; i < 90; i++) { x.fillStyle = rnd() < 0.5 ? '#f4f8fa' : '#dfe8ec'; x.fillRect(7 + (rnd() * 32 | 0), 4 + (rnd() * 24 | 0), 2, 1); }
   });
 }
 function makeTileSet(s) {
   const p = PAL[s], T = {};
   // Stamm + Bodenschatten (Krone wird separat über den Figuren gezeichnet)
-  T.tree = mk(16, 16, x => { R(x, 'rgba(0,0,0,.28)', 1, 7, 14, 8); R(x, 'rgba(0,0,0,.18)', 3, 5, 11, 11); R(x, '#3e3020', 6, 4, 4, 9); R(x, '#54422c', 7, 4, 2, 9); R(x, '#2c2216', 5, 12, 6, 2); });
+  T.tree = up(mk(16, 16, x => { R(x, 'rgba(0,0,0,.28)', 1, 7, 14, 8); R(x, 'rgba(0,0,0,.18)', 3, 5, 11, 11); R(x, '#3e3020', 6, 4, 4, 9); R(x, '#54422c', 7, 4, 2, 9); R(x, '#2c2216', 5, 12, 6, 2); }));
   T.canopy = [canopy(p, s, 0), canopy(p, s, 1), canopy(p, s, 2)];
-  T.stump = mk(16, 16, x => { R(x, '#5c3f22', 5, 5, 6, 6); R(x, '#c9a070', 6, 6, 4, 4); R(x, '#94693c', 7, 7, 2, 2); });
-  T.rock = mk(16, 16, x => { R(x, 'rgba(0,0,0,.2)', 3, 5, 12, 10); R(x, '#6b6e73', 2, 4, 12, 9); R(x, '#8a8d92', 3, 3, 9, 8); R(x, '#a5a8ad', 4, 4, 4, 3); if (s === 3) R(x, '#eef3f5', 3, 3, 8, 2); });
-  T.bush = mk(16, 16, x => { R(x, shade(p.bush, 0.8), 2, 4, 12, 9); R(x, p.bush, 3, 3, 10, 9); R(x, '#b02a50', 5, 5, 2, 2); R(x, '#b02a50', 9, 7, 2, 2); R(x, '#b02a50', 6, 9, 2, 2); });
-  T.bushE = mk(16, 16, x => { R(x, shade(p.bush, 0.8), 2, 4, 12, 9); R(x, p.bush, 3, 3, 10, 9); });
-  T.reed = mk(16, 16, x => { for (let i = 0; i < 5; i++) { R(x, s === 3 ? '#a8a890' : '#7a8a45', 2 + i * 3, 4 + (i * 5) % 6, 1, 6); R(x, '#5a4020', 2 + i * 3, 3 + (i * 5) % 6, 1, 2); } });
-  T.crop = mk(16, 16, x => { for (let i = 0; i < 3; i++) { R(x, p.crop, 2 + i * 5, 3, 2, 10); R(x, shade(p.crop, 1.2), 2 + i * 5, 3, 2, 3); } });
-  T.cropE = mk(16, 16, x => { for (let i = 0; i < 3; i++) R(x, shade(p.farmB, 0.85), 2 + i * 5, 6, 2, 5); });
-  T.crate = mk(16, 16, x => { R(x, '#6a4828', 2, 3, 12, 11); R(x, '#94693c', 3, 4, 10, 9); R(x, '#6a4828', 3, 8, 10, 1); R(x, '#6a4828', 7, 4, 2, 9); R(x, '#ffd060', 7, 7, 2, 3); });
-  T.crateO = mk(16, 16, x => { R(x, '#4a3420', 2, 3, 12, 11); R(x, '#2a1c10', 3, 4, 10, 9); });
+  T.stump = up(mk(16, 16, x => { R(x, '#5c3f22', 5, 5, 6, 6); R(x, '#c9a070', 6, 6, 4, 4); R(x, '#94693c', 7, 7, 2, 2); }));
+  T.rock = blob(32, 12, 10, s === 3 ? '#e4eaee' : '#8e9088', '#6c6e68', '#4c4e4a', 21 + s);
+  T.bush = blob(32, 13, 11.5, shade(p.bush, 1.2), p.bush, shade(p.bush, 0.7), 31 + s, '#8a2440');
+  T.bushE = blob(32, 13, 11.5, shade(p.bush, 1.2), p.bush, shade(p.bush, 0.7), 31 + s, null);
+  T.reed = up(mk(16, 16, x => { for (let i = 0; i < 5; i++) { R(x, s === 3 ? '#a8a890' : '#7a8a45', 2 + i * 3, 4 + (i * 5) % 6, 1, 6); R(x, '#5a4020', 2 + i * 3, 3 + (i * 5) % 6, 1, 2); } }));
+  T.crop = up(mk(16, 16, x => { for (let i = 0; i < 3; i++) { R(x, p.crop, 2 + i * 5, 3, 2, 10); R(x, shade(p.crop, 1.2), 2 + i * 5, 3, 2, 3); } }));
+  T.cropE = up(mk(16, 16, x => { for (let i = 0; i < 3; i++) R(x, shade(p.farmB, 0.85), 2 + i * 5, 6, 2, 5); }));
+  T.crate = up(mk(16, 16, x => { R(x, '#6a4828', 2, 3, 12, 11); R(x, '#94693c', 3, 4, 10, 9); R(x, '#6a4828', 3, 8, 10, 1); R(x, '#6a4828', 7, 4, 2, 9); R(x, '#ffd060', 7, 7, 2, 3); }));
+  T.crateO = up(mk(16, 16, x => { R(x, '#4a3420', 2, 3, 12, 11); R(x, '#2a1c10', 3, 4, 10, 9); }));
   T.wall = {}; T.win = {}; T.wallTop = {};
   for (const k in WALLCOL) {
     const c = WALLCOL[k], top = shade(ROOFCOL[k], 0.7);
     // Fassade (Südseite, Schrägsicht): Verkleidung mit Sockel
     const facade = x => { R(x, c, 0, 0, 16, 16); for (let i = 1; i < 12; i += 3) R(x, shade(c, 0.86), 0, i, 16, 1); R(x, shade(c, 1.12), 0, 0, 16, 1); R(x, shade(c, 0.6), 0, 12, 16, 4); R(x, shade(c, 0.5), 0, 15, 16, 1); if (s === 3) R(x, '#dfe6e8', 0, 15, 16, 1); };
-    T.wall[k] = mk(16, 16, facade);
-    T.win[k] = mk(16, 16, x => { facade(x); R(x, '#1c2226', 3, 2, 10, 9); R(x, '#4a6470', 4, 3, 8, 7); R(x, '#7a98a4', 4, 3, 3, 2); R(x, '#1c2226', 8, 3, 1, 7); R(x, shade(c, 1.2), 2, 11, 12, 1); });
-    T.wallTop[k] = mk(16, 16, x => { R(x, top, 0, 0, 16, 16); R(x, shade(top, 1.25), 0, 0, 16, 1); R(x, shade(top, 0.8), 0, 15, 16, 1); if (s === 3) R(x, '#dfe6e8', 0, 0, 16, 3); });
+    T.wall[k] = up(mk(16, 16, facade));
+    T.win[k] = up(mk(16, 16, x => { facade(x); R(x, '#1c2226', 3, 2, 10, 9); R(x, '#4a6470', 4, 3, 8, 7); R(x, '#7a98a4', 4, 3, 3, 2); R(x, '#1c2226', 8, 3, 1, 7); R(x, shade(c, 1.2), 2, 11, 12, 1); }));
+    T.wallTop[k] = up(mk(16, 16, x => { R(x, top, 0, 0, 16, 16); R(x, shade(top, 1.25), 0, 0, 16, 1); R(x, shade(top, 0.8), 0, 15, 16, 1); if (s === 3) R(x, '#dfe6e8', 0, 0, 16, 3); }));
   }
   return T;
 }
 
 // Icon für UI (liefert neues Canvas-Element)
 export function iconCanvas(src) {
-  const c = document.createElement('canvas'); c.width = 16; c.height = 16;
+  const c = document.createElement('canvas'); c.width = src.width; c.height = src.height;
   c.getContext('2d').drawImage(src, 0, 0); return c;
 }
