@@ -20,7 +20,7 @@ export function drawLighting(ctx, v) {
   lx.setTransform(1, 0, 0, 1, 0, 0);
   lx.globalCompositeOperation = 'source-over'; lx.globalAlpha = 1;
   lx.clearRect(0, 0, w, h);
-  lx.fillStyle = e.bloodMoon ? 'rgba(46,4,8,' + dark + ')' : 'rgba(5,7,20,' + dark + ')';
+  lx.fillStyle = e.bloodMoon ? 'rgba(30,3,6,' + dark + ')' : 'rgba(5,7,20,' + dark + ')';
   lx.fillRect(0, 0, w, h);
   lx.globalCompositeOperation = 'destination-out';
   const px = v.px * s + tx, py = v.py * s + ty;

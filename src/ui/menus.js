@@ -190,7 +190,7 @@ export const structActions = {};   // id → (s, add) => void, von turrets.js er
 export function showStruct(s) {
   if (s.dead) { closeOverlay(); return; }
   const d = s.def, p = G.player;
-  const o = showOverlay(`<div class="panel narrow">${X}<h2>${d.n} <small style="color:#8a8f98">Stufe ${s.lvl}/3</small></h2>
+  const o = showOverlay(`<div class="panel narrow">${X}<h2>${d.n} <small style="color:#8a8f98">Stufe ${s.lvl}/3 · ${['Holz', 'Metall', 'Verstärkt'][s.lvl - 1]}</small></h2>
     <p>${d.d}<br>Zustand: <b>${Math.ceil(s.hp)} / ${Math.ceil(s.maxHp)}</b>${d.ammo && d.cap ? `<br>${ITEMS[d.ammo].n}: <b>${Math.floor(s.ammo)} / ${d.cap}</b>` : ''}<span id="s-extra"></span></p><div id="s-btns"></div></div>`);
   bindClose(o);
   const box = o.querySelector('#s-btns');
@@ -221,7 +221,7 @@ export function showStruct(s) {
   if (d.ammo && d.cap) { const have = countItem(d.ammo), need = Math.ceil(d.cap - s.ammo); add(`${ITEMS[d.ammo].n} nachfüllen (${Math.min(have, need)})`, () => { const n = Math.min(countItem(d.ammo), Math.ceil(d.cap - s.ammo)); removeItem(d.ammo, n); s.ammo += n; sfx('reload'); re(); }, !have || need <= 0); }
   // allgemein
   if (s.hp < s.maxHp - 1) { const rc = repairCost(s); add(`Reparieren (${rc.n} ${ITEMS[rc.item].n})`, () => { removeItem(rc.item, rc.n); s.hp = s.maxHp; sfx('build'); re(); }, countItem(rc.item) < rc.n); }
-  if (s.lvl < 3) { const uc = CFG.build.upgCost[s.lvl]; add(`Aufwerten → Stufe ${s.lvl + 1} <small>(${Object.keys(uc).map(k => uc[k] + ' ' + ITEMS[k].n).join(', ')})</small>`, () => { payCost(uc); s.lvl++; s.maxHp = d.hp * CFG.build.upgHp[s.lvl - 1]; s.hp = s.maxHp; sfx('craft'); re(); }, !hasCost(uc)); }
+  if (s.lvl < 3) { const uc = CFG.build.upgCost[s.lvl]; add(`Aufwerten → ${['', 'Metall', 'Verstärkt'][s.lvl]} <small>(${Object.keys(uc).map(k => uc[k] + ' ' + ITEMS[k].n).join(', ')})</small>`, () => { payCost(uc); s.lvl++; s.maxHp = d.hp * CFG.build.upgHp[s.lvl - 1]; s.hp = s.maxHp; sfx('craft'); re(); }, !hasCost(uc)); }
   add('Abbauen (50 % Material zurück)', () => { if (s.inv) for (const it of s.inv) if (it) { const r = addItem(it); if (r > 0) { it.n = r; import('../systems/inventory.js').then(m => m.dropAt(s.x, s.y, it)); } } for (const k in d.cost) { const n = Math.floor(d.cost[k] / 2); if (n) give(k, n, true); } removeStruct(s); sfx('snap'); closeOverlay(); });
 }
 G.onStruct = s => showStruct(s);

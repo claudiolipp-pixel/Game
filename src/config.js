@@ -58,7 +58,7 @@ export const CFG = {
     hpPerDay: 0.03, yearMult: 0.35,          // jedes Jahr schwerer
     spawnMin: 420, spawnMax: 640, despawn: 1100,
     sight: 190, sightNight: 95, sneakMult: 0.45, sprintMult: 1.25,
-    hordeBase: 7, hordePerDay: 0.55, hordeWave: 22, hordeMax: 26,
+    hordeBase: 5, hordePerDay: 0.4, hordeWave: 28, hordeMax: 24,
     frostChance: 0.45,
   },
 

@@ -6,6 +6,7 @@ import { moveCircle } from '../world/world.js';
 import { sfx } from '../audio/audio.js';
 import { blood } from './fx.js';
 import { toast } from '../ui/hud.js';
+import { emitNoise } from '../systems/noise.js';
 
 export function newPlayer(x, y) {
   return {
@@ -34,6 +35,8 @@ export function updatePlayer(dt) {
   sp *= p.speedMul;
   const nx = input.mx / mm, ny = input.my / mm;
   moveCircle(p, nx * sp * dt, ny * sp * dt, false);
+  p.stepT -= dt * (p.sprinting ? 1.6 : 1);
+  if (p.stepT <= 0 && !p.sneaking) { p.stepT = 0.36; sfx('step', p.sprinting ? 1 : 0.5); if (p.sprinting) emitNoise(p.x, p.y, CFG.noise.sprint); }
 }
 
 // Schaden am Spieler. z = angreifender Zombie (für Infektion) oder null

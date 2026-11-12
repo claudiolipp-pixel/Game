@@ -10,7 +10,8 @@ import { sfx } from '../audio/audio.js';
 import { burst, particle } from '../entities/fx.js';
 import { toast } from '../ui/hud.js';
 import { countItem, removeItem, give } from './inventory.js';
-import { T, W, key, getObj, setObj, O_TREE, O_ROCK, O_STUMP, O_NONE } from '../world/world.js';
+import { T, W, key, getObj, setObj, O_TREE, O_ROCK, O_STUMP, O_NONE, O_WINDOW } from '../world/world.js';
+import { CFG } from '../config.js';
 
 export function weaponSlot() { return G.inv.weapon >= 0 ? G.inv.slots[G.inv.weapon] : null; }
 export function weaponDef() { const s = weaponSlot(); return s ? ITEMS[s.id] : FISTS; }
@@ -60,6 +61,10 @@ function melee(w, s) {
   // Baum / Stein vor dem Spieler
   for (let r = 14; r <= 30; r += 16) {
     const tx = Math.floor((p.x + ax * r) / T), ty = Math.floor((p.y + ay * r) / T), ob = getObj(tx, ty);
+    if (ob === O_WINDOW) {   // Fenster einschlagen: neuer Eingang, aber laut
+      setObj(tx, ty, O_NONE); sfx('snap'); sfx('alarm', 0.5); burst((tx + 0.5) * T, (ty + 0.5) * T, 10, '#cef', 120, 0.4, 2);
+      emitNoise(p.x, p.y, CFG.noise.glass); toast('Glas zerbrochen – das war laut.'); return;
+    }
     if (ob !== O_TREE && ob !== O_ROCK) continue;
     const k = key(tx, ty), max = ob === O_TREE ? 7 : 9;
     const left = (W.dmg.has(k) ? W.dmg.get(k) : max) - (ob === O_TREE ? (w.chop || 1) : (w === FISTS ? 0.5 : 1.5));

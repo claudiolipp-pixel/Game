@@ -37,6 +37,60 @@ node tools/make-sw.mjs      # aktualisiert Dateiliste + Cache-Version in sw.js
 node tools/make-icons.mjs   # (nur bei Icon-Änderungen; benötigt Playwright)
 ```
 
+## Steuerung
+
+| Aktion | iPad (Touch) | Tastatur/Maus | Gamepad |
+|---|---|---|---|
+| Bewegen | linker Stick (leicht = schleichen) | WASD / Pfeile, `C` schleichen | linker Stick |
+| Zielen + Angreifen | rechter Stick (weit auslenken = feuern) | Maus + Klick | rechter Stick / RT |
+| Sprinten | 🏃 (umschalten) | Shift | LT / L3 |
+| Interagieren | ✋ | `E` | A |
+| Waffe wechseln / Nachladen | ⚔ / Tipp auf Waffenanzeige | `Q` / `R` | LB / X |
+| Inventar / Bauen | 🎒 / 🔨 | `I` / `B` | Y / RB |
+| Taschenlampe | 🔦 | `F` | Select |
+| Bauen: platzieren / drehen / abbrechen | Leiste unten | Leertaste / `T` / `X` | D-Pad ↓ / D-Pad ↑ / B |
+| Karte / Pause | Minimap antippen / Ⅱ | – / `Esc` | – / Start |
+
+Linkshänder-Modus, Joystick-Größe, feste Joystick-Position, Grafikqualität, Tageslänge und „Fallen markieren“
+stehen in den Einstellungen.
+
+## Kurzanleitung
+
+- **Ziel:** so viele Tage wie möglich überleben. 1 Tag ≈ 8 Minuten, 4 Jahreszeiten à 7 Tage, jedes Jahr wird härter.
+- **Tag 1:** Bäume/Steine schlagen (Holz, Stein), Kisten in Gebäuden plündern, vor der Nacht ein Lagerfeuer bauen.
+- **Wasser** aus Seen/Flüssen am Lagerfeuer abkochen, Regen mit Regensammlern auffangen. **Fleisch** braten.
+- **Lärm** (Schüsse, Sprinten, Glas, Generator) lockt Zombies an – Bogen, Armbrust-Turm und Schleichen sind leise.
+- **Biss = Infektionsrisiko**, heilbar nur mit Antibiotika (Supermarkt, Polizei, Militär).
+- **Alle 10 Tage Blutmond:** Horden greifen an. Wände, Speerwälle, Fallen und Türme vorbereiten, Kiste mit
+  Munition neben Türme stellen. Baupläne für Türme liegen in Baumarkt, Polizeistation und Militärposten.
+- **Winter:** Mantel nähen (10 Stoff), Feuer und Dach nutzen, Vorräte anlegen. Seen sind zugefroren (begehbar).
+- **Bett:** schlafen überspringt die Nacht und speichert – nur wenn keine Zombies in der Nähe sind.
+
+## Architektur
+
+```
+index.html, style.css      HUD + Menüs als DOM-Overlay, Spielfeld als Canvas
+manifest.json, sw.js       PWA (fullscreen, Querformat, Cache-first-Service-Worker)
+icons/                     per Canvas generierte PNG-Icons (tools/make-icons.mjs)
+src/config.js              ALLE Balancing-Werte: Items, Rezepte, Bauwerke, Zombies, Loot, Wetter …
+src/state.js               gemeinsamer Spielzustand (G)
+src/core/                  loop (Fixed Timestep 60 Hz + Interpolation), input (Touch/Tastatur/Gamepad),
+                           save (localStorage), rng (Hash + Perlin), game (Orchestrierung, Auto-Save)
+src/world/                 world (Chunks, Biome, Gebäude, Kollision, Persistenz), time, weather
+src/entities/              player, zombies (Pool + KI + Wildtiere), projectiles (Pool), fx (Partikel-Pool)
+src/systems/               spatial (Spatial Hash), flowfield (Horden-Pathfinding), noise, combat,
+                           inventory, survival, interact
+src/building/              structures (Bauwerke + Fallen), turrets (Türme, MG, Generator, Stromzaun), build
+src/render/                sprites (prozedurale Pixel-Art), renderer, lighting (Compositing), weatherfx
+src/ui/                    hud, menus, minimap, tutorial
+src/audio/audio.js         Web-Audio-Synthesizer (entsperrt nach erster Geste)
+```
+
+Performance: Object Pools für Zombies/Projektile/Partikel, Spatial Hash für alle Nachbarschaftsabfragen,
+Flow-Field (Bucket-Dijkstra, alle 0,4 s) statt Einzel-Pathfinding, Chunks als vorgerenderte Canvas,
+Culling außerhalb des Sichtfelds, Türme scannen nur alle 200 ms, Licht-Layer in 1/3 Auflösung,
+keine Allokationen in den heißen Schleifen. Bei Bedarf „Grafikqualität“ reduzieren.
+
 ---
 
 ## Projektspezifikation

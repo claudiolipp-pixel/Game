@@ -63,7 +63,7 @@ function onTouchEnd(e) {
 const KEYMAP = { e: 'interact', i: 'inv', tab: 'inv', b: 'build', q: 'swap', r: 'reload', f: 'light', escape: 'pause', p: 'pause', ' ': 'place', t: 'rotate', x: 'cancel' };
 
 export function initInput(cv) {
-  canvas = cv;
+  canvas = cv; input.touch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
   const o = { passive: false };
   cv.addEventListener('touchstart', onTouchStart, o);
   cv.addEventListener('touchmove', onTouchMove, o);
