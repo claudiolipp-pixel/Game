@@ -6,7 +6,7 @@ import { settings, saveSettings } from '../core/save.js';
 let el = null, step = -1, sx = 0, sy = 0, t = 0;
 const STEPS = [
   { touch: 'Linker Stick: bewegen. Nur leicht auslenken = schleichen (leise). 🏃 schaltet Sprinten um.', key: 'WASD: bewegen · Shift: sprinten · C: schleichen.', done: () => Math.hypot(G.player.x - sx, G.player.y - sy) > 120 },
-  { touch: 'Rechter Stick: zielen – weit auslenken = zuschlagen/schießen. ⚔ wechselt die Waffe.', key: 'Maus: zielen, Klick: angreifen · Q: Waffe wechseln · R: nachladen.', done: () => G.player.swing > 0 },
+  { touch: '⚔ gedrückt halten = angreifen (zielt automatisch auf den nächsten Zombie). Oder rechter Stick: selbst zielen, weit auslenken = feuern. 🔁 wechselt die Waffe.', key: 'Maus: zielen, Klick: angreifen · Q: Waffe wechseln · R: nachladen.', done: () => G.player.swing > 0 },
   { touch: 'Schlag auf Bäume und Steine für Holz und Stein. ✋ plündert Kisten in Gebäuden, pflückt Beeren und schöpft Wasser (abkochen!).', key: 'Schlag auf Bäume/Steine für Material. E: Kisten plündern, Beeren, Wasser (abkochen!).', done: () => t > 14 },
   { touch: '🔨 öffnet Herstellen & Bauen, 🎒 das Inventar. Bau vor der Nacht ein Lagerfeuer – und später Wände, Fallen, ein Bett.', key: 'B: Herstellen & Bauen · I: Inventar · F: Taschenlampe. Bau vor der Nacht ein Lagerfeuer!', done: () => t > 14 },
   { touch: 'Lärm lockt Zombies an. Achte auf Hunger, Durst und Temperatur. Alle 10 Tage: Blutmond. Viel Glück!', key: 'Lärm lockt Zombies an. Achte auf Hunger, Durst, Temperatur. Alle 10 Tage: Blutmond. Viel Glück!', done: () => t > 10 },

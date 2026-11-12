@@ -42,10 +42,10 @@ node tools/make-icons.mjs   # (nur bei Icon-Änderungen; benötigt Playwright)
 | Aktion | iPad (Touch) | Tastatur/Maus | Gamepad |
 |---|---|---|---|
 | Bewegen | linker Stick (leicht = schleichen) | WASD / Pfeile, `C` schleichen | linker Stick |
-| Zielen + Angreifen | rechter Stick (weit auslenken = feuern) | Maus + Klick | rechter Stick / RT |
+| Zielen + Angreifen | ⚔ halten (Auto-Zielen) oder rechter Stick (weit auslenken = feuern) | Maus + Klick | rechter Stick / RT |
 | Sprinten | 🏃 (umschalten) | Shift | LT / L3 |
 | Interagieren | ✋ | `E` | A |
-| Waffe wechseln / Nachladen | ⚔ / Tipp auf Waffenanzeige | `Q` / `R` | LB / X |
+| Waffe wechseln / Nachladen | 🔁 / Tipp auf Waffenanzeige | `Q` / `R` | LB / X |
 | Inventar / Bauen | 🎒 / 🔨 | `I` / `B` | Y / RB |
 | Taschenlampe | 🔦 | `F` | Select |
 | Bauen: platzieren / drehen / abbrechen | Leiste unten | Leertaste / `T` / `X` | D-Pad ↓ / D-Pad ↑ / B |

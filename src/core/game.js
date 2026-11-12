@@ -20,6 +20,7 @@ import { updateSurvival } from '../systems/survival.js';
 import { interact, rollLoot } from '../systems/interact.js';
 import { updateMinimap } from '../ui/minimap.js';
 import { LOOT } from '../config.js';
+import { query, Q } from '../systems/spatial.js';
 import { updateWeather, resetWeather } from '../world/weather.js';
 import { addTrack, clearTracks } from '../render/weatherfx.js';
 import { dropAt } from '../systems/inventory.js';
@@ -67,6 +68,12 @@ export function update(dt) {
   G.tick++;
   playerScreen(ps);
   pollInput(ps.x, ps.y);
+  // Angriffs-Button ohne Ziel-Stick: automatisch auf den nächsten Zombie zielen
+  if (input.atkHeld && !input.R.on) {
+    const p = G.player, n = query(p.x, p.y, 230); let bd = 1e9, bz = null;
+    for (let i = 0; i < n; i++) { const z = Q.items[i]; if (z.def.animal && n > 1) continue; const d = (z.x - p.x) * (z.x - p.x) + (z.y - p.y) * (z.y - p.y); if (d < bd) { bd = d; bz = z; } }
+    if (bz) { const d = Math.sqrt(bd) || 1; input.ax = (bz.x - p.x) / d; input.ay = (bz.y - p.y) / d; }
+  }
   const a = input.act;
   if (a.pause) { showPause(); clearActions(); return; }
   if (a.inv) { showInventory(); clearActions(); return; }

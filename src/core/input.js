@@ -10,6 +10,7 @@ export const input = {
   L: { id: -1, ox: 0, oy: 0, x: 0, y: 0, on: false },
   R: { id: -1, ox: 0, oy: 0, x: 0, y: 0, on: false },
   sprintToggle: false,
+  atkHeld: false,          // Angriffs-Button gehalten
 };
 const keys = {};
 const mouse = { x: 0, y: 0, down: false, used: false };
@@ -93,8 +94,11 @@ export function initInput(cv) {
     el.addEventListener('pointerdown', e => {
       e.preventDefault(); e.stopPropagation();
       const a = el.dataset.act;
-      if (a === 'sprint') input.sprintToggle = !input.sprintToggle; else input.act[a] = true;
+      if (a === 'sprint') input.sprintToggle = !input.sprintToggle;
+      else if (a === 'attack') { input.atkHeld = true; try { el.setPointerCapture(e.pointerId); } catch (err) { } }
+      else input.act[a] = true;
     });
+    if (el.dataset.act === 'attack') for (const ev of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(ev, () => { input.atkHeld = false; });
   });
 }
 
@@ -139,9 +143,10 @@ export function pollInput(psx, psy) {
   const mm = Math.hypot(mx, my);
   if (input.L.on && mm > 0.12 && mm < 0.5) sneak = true;
   if (mm < 0.12) { mx = 0; my = 0; }
+  if (input.atkHeld || keys.k) fire = true;
   input.mx = mx; input.my = my; input.sprint = sprint && !sneak; input.sneak = sneak; input.fire = fire;
   if (aimSet) { input.ax = ax; input.ay = ay; }
   else if (mm > 0.12) { input.ax = mx / mm; input.ay = my / mm; }
 }
 export function clearActions() { const a = input.act; for (const k in a) a[k] = false; }
-export function resetSticks() { input.L.on = input.R.on = false; input.L.x = input.L.y = input.R.x = input.R.y = 0; mouse.down = false; for (const k in keys) keys[k] = false; }
+export function resetSticks() { input.atkHeld = false; input.L.on = input.R.on = false; input.L.x = input.L.y = input.R.x = input.R.y = 0; mouse.down = false; for (const k in keys) keys[k] = false; }
