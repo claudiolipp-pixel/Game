@@ -4,7 +4,7 @@ import { CFG } from '../config.js';
 import { settings } from '../core/save.js';
 import { input, stickRadius } from '../core/input.js';
 import { SPR, HEAD } from './sprites.js';
-import { drawGround, drawRoofs, drawCanopies, T } from '../world/world.js';
+import { drawGround, drawRoofs, drawCanopies, drawShadows, T } from '../world/world.js';
 import { drawLighting } from './lighting.js';
 import { drawWeather, drawTracks } from './weatherfx.js';
 import { ST } from '../building/structures.js';
@@ -30,7 +30,7 @@ export function resize() {
   view.w = canvas.width; view.h = canvas.height; view.css = canvas.width / innerWidth;
   view.scale = view.h / CFG.VIEW_H;
   if (view.w / view.scale > CFG.VIEW_H * 2.3) view.scale = view.w / (CFG.VIEW_H * 2.3);
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
 }
 // Bildschirmposition des Spielers in CSS-Pixeln (für Maus-Zielen)
 export function playerScreen(out) { out.x = (view.px * view.scale + view.tx) / view.css; out.y = (view.py * view.scale + view.ty) / view.css; }
@@ -38,12 +38,12 @@ export function playerScreen(out) { out.x = (view.px * view.scale + view.tx) / v
 let vig = null;
 function vignette() {
   if (!vig) { vig = document.createElement('canvas'); vig.width = vig.height = 128; const x = vig.getContext('2d'), g = x.createRadialGradient(64, 64, 34, 64, 64, 92); g.addColorStop(0, 'rgba(8,10,6,0)'); g.addColorStop(1, 'rgba(8,10,6,0.62)'); x.fillStyle = g; x.fillRect(0, 0, 128, 128); }
-  ctx.imageSmoothingEnabled = true; ctx.drawImage(vig, 0, 0, view.w, view.h); ctx.imageSmoothingEnabled = false;
+  ctx.drawImage(vig, 0, 0, view.w, view.h);
 }
 function drawSprite(img, x, y, ang, sz) {
   const s = view.scale;
   ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
-  ctx.fillStyle = 'rgba(0,0,0,0.26)'; ctx.fillRect(x - 7 * sz, y + 2, 14 * sz, 8 * sz); ctx.fillRect(x - 5 * sz, y + 1, 10 * sz, 10 * sz);
+  ctx.drawImage(SPR.shadow, x - 12 * sz, y - 7 * sz, 30 * sz, 22 * sz);
   ctx.setTransform(Math.cos(ang) * s * sz, Math.sin(ang) * s * sz, -Math.sin(ang) * s * sz, Math.cos(ang) * s * sz, x * s + view.tx, y * s + view.ty);
   ctx.drawImage(img, -16, -16, 32, 32);
 }
@@ -58,7 +58,7 @@ export function render(alpha, fdt) {
   view.tx = Math.round(view.w / 2 - view.camX * s); view.ty = Math.round(view.h / 2 - view.camY * s);
 
   ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.imageSmoothingEnabled = false;
+  ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
   drawGround(ctx, view);
 
   if (G.shake > 0) { view.tx += Math.round((Math.random() - 0.5) * G.shake * s); view.ty += Math.round((Math.random() - 0.5) * G.shake * s); }
@@ -69,6 +69,7 @@ export function render(alpha, fdt) {
   ctx.globalAlpha = 1;
   if (G.env.season === 3) drawTracks(ctx, G.paused ? 0 : fdt);
   const dr = G.drops; for (let i = 0; i < dr.length; i++) ctx.drawImage(SPR.bag, dr[i].x - 8, dr[i].y - 8, 16, 16);
+  drawShadows(ctx, view);
   // Bauwerke
   const sl = ST.list, snowy = W.season === 3 && !settings.markTraps;
   for (let i = 0; i < sl.length; i++) {
@@ -103,12 +104,13 @@ export function render(alpha, fdt) {
     const zx = z.ox + (z.x - z.ox) * alpha, zy = z.oy + (z.y - z.oy) * alpha;
     if (zx < cx - hw || zx > cx + hw || zy < cy - hh || zy > cy + hh) continue;
     if (z.def.stealth) ctx.globalAlpha = G.env.dark > 0.5 ? 0.35 : 0.6;
-    drawSprite(z.frost ? SPR.zf[z.type] : SPR.z[z.type], zx, zy, z.ang + Math.sin((G.tick + i * 7) * 0.2) * 0.12, z.def.sz * (z.flash > 0 ? 1.15 : 1));
+    const zs = z.frost ? SPR.zf[z.type] : SPR.z[z.type];
+    drawSprite(zs.length ? zs[((G.tick + i * 5) >> (z.def.sp > 60 ? 3 : 4)) & 1] : zs, zx, zy, z.ang + Math.sin((G.tick + i * 7) * 0.13) * 0.07, z.def.sz * (z.flash > 0 ? 1.12 : 1));
     ctx.globalAlpha = 1;
     if (z.hp < z.maxHp && z.def.heavy) { ctx.setTransform(s, 0, 0, s, view.tx, view.ty); ctx.fillStyle = '#000'; ctx.fillRect(zx - 12, zy - 22, 24, 3); ctx.fillStyle = '#c33'; ctx.fillRect(zx - 12, zy - 22, 24 * z.hp / z.maxHp, 3); }
   }
   // Spieler
-  if (p.hp > 0) drawSprite(SPR.player, view.px, view.py, p.ang, p.hurtT > 0 ? 1.1 : 1);
+  if (p.hp > 0) drawSprite(SPR.player[p.moving ? (G.tick >> (p.sprinting ? 2 : 3)) & 1 : 0], view.px, view.py, p.ang, p.hurtT > 0 ? 1.1 : 1);
   ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
   if (p.swing > 0) {
     ctx.strokeStyle = 'rgba(255,255,255,0.75)'; ctx.lineWidth = 3;

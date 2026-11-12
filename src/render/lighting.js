@@ -9,6 +9,7 @@ export function addLight(x, y, r, a) { if (lights.n >= 64) return; const i = lig
 
 export function drawLighting(ctx, v) {
   const e = G.env, p = G.player;
+  if (e.dark > 0.02 && e.dark < 0.8 && !e.bloodMoon) { ctx.fillStyle = 'rgba(255,128,48,' + (Math.sin(e.dark / 0.8 * Math.PI) * 0.17).toFixed(3) + ')'; ctx.fillRect(0, 0, v.w, v.h); }   // warmes Dämmerungslicht
   let dark = e.dark * 0.94;
   if (e.weather === 'storm' || e.weather === 'blizzard') dark = Math.max(dark, 0.35); else if (e.weather === 'rain' || e.weather === 'fog') dark = Math.max(dark, 0.18);
   if (G.lightning > 0) dark *= 1 - Math.min(1, G.lightning * 4);
@@ -40,7 +41,5 @@ export function drawLighting(ctx, v) {
   }
   lights.n = 0;
   lx.globalAlpha = 1;
-  ctx.imageSmoothingEnabled = true;
   ctx.drawImage(lc, 0, 0, v.w, v.h);
-  ctx.imageSmoothingEnabled = false;
 }

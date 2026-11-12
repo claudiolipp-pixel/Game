@@ -237,7 +237,7 @@ const isWall = ob => ob === O_WALL || ob === O_WINDOW;
 
 // --- Pixelweises Boden-Rendering: Biom-Grenzen werden mit weichem Rauschen verschoben (organisch statt Kacheln) ---
 const CS = CH * T, DS = 256, cpool = [];
-const dispX = new Int8Array(DS * DS), dispY = new Int8Array(DS * DS), mott = new Int8Array(DS * DS);
+const dispX = new Int8Array(DS * DS), dispY = new Int8Array(DS * DS), mott = new Int8Array(DS * DS), patch = new Int8Array(DS * DS);
 (function initNoiseTables() {
   let r = 9001; const rn = () => { r = (Math.imul(r, 1664525) + 1013904223) >>> 0; return r / 4294967296; };
   const layer = cells => {      // kachelbares Value-Noise
@@ -250,7 +250,8 @@ const dispX = new Int8Array(DS * DS), dispY = new Int8Array(DS * DS), mott = new
     }
     return out;
   };
-  const a1 = layer(8), a2 = layer(32), b1 = layer(8), b2 = layer(32), m1 = layer(16), m2 = layer(64);
+  const a1 = layer(8), a2 = layer(32), b1 = layer(8), b2 = layer(32), m1 = layer(16), m2 = layer(64), q1 = layer(4), q2 = layer(16);
+  for (let i = 0; i < DS * DS; i++) patch[i] = Math.round((q1[i] * 0.65 + q2[i] * 0.35) * 100);
   for (let i = 0; i < DS * DS; i++) { dispX[i] = Math.round((a1[i] * 0.72 + a2[i] * 0.28) * 15); dispY[i] = Math.round((b1[i] * 0.72 + b2[i] * 0.28) * 15); mott[i] = Math.round((m1[i] * 0.6 + m2[i] * 0.4) * 11); }
 })();
 const NAT = new Uint8Array([1, 1, 1, 1, 1, 1, 0, 0, 0]);      // natürliche Böden (weiche Kanten)
@@ -280,6 +281,14 @@ function renderChunk(c) {
       else if (g === G_FLOOR) { v >>= 1; if ((wy & 15) === 0 || ((wx + ((wy >> 4) & 1) * 16) & 31) === 0) v -= 20; }
       else if (g === G_ROAD) v += ((h >>> 20) & 31) === 0 ? -22 : 0;
       const cc = cols[g]; let r = cc[0] + v, gg = cc[1] + v, b = cc[2] + v;
+      if (g <= G_FOREST) {            // kahle Erdflecken in Wiese/Wald
+        const pt = patch[((wx >> 1) & 255) + (((wy >> 1) & 255) << 8)];
+        if (pt > 26) { const k = (pt > 56 ? 30 : pt - 26) * 0.017, dc = cols[G_FARM]; r += (dc[0] - 14 + v - r) * k; gg += (dc[1] - 14 + v - gg) * k; b += (dc[2] - 12 + v - b) * k; }
+        else if (pt < -34) { r -= 7; gg -= 4; b -= 6; }      // sattere, dunklere Stellen
+      } else if (g === G_WATER) {     // flaches, helleres Wasser am Ufer; tiefes Wasser dunkler
+        const di = (wx & 255) + dy8, g2 = gpad[(((py + dispY[di] * 2 + 9) >> 5) + 1) * PW + 1 + ((px + dispX[di] * 2 + 9) >> 5)], g3 = gpad[(((py - dispY[di] * 2 - 9) >> 5) + 1) * PW + 1 + ((px - dispX[di] * 2 - 9) >> 5)];
+        if (g2 !== G_WATER || g3 !== G_WATER) { const sc = cols[G_SAND]; r += (sc[0] - r) * 0.3; gg += (sc[1] - gg) * 0.3 + 4; b += (sc[2] - b) * 0.18 + 5; } else { r -= 6; gg -= 5; b -= 3; }
+      }
       p32[px + py * CS] = 0xff000000 | ((b < 0 ? 0 : b > 255 ? 255 : b) << 16) | ((gg < 0 ? 0 : gg > 255 ? 255 : gg) << 8) | (r < 0 ? 0 : r > 255 ? 255 : r);
     }
   }
@@ -306,7 +315,7 @@ function renderChunk(c) {
       }
       case O_CRATE: spr = ts.crate; break; case O_CRATE_O: spr = ts.crateO; break;
     }
-    if (spr) x.drawImage(spr, px, py);
+    if (spr) { if (ob === O_BUSH || ob === O_BUSH_E) x.drawImage(spr, px - 3, py - 3, 38, 38); else x.drawImage(spr, px, py, T, T); }
     if (g === G_FLOOR && !isWall(ob) && ly > 0 && isWall(c.o[i - CH])) { x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px, py, 32, 7); x.fillStyle = 'rgba(0,0,0,0.14)'; x.fillRect(px, py + 7, 32, 5); }   // Wandschatten innen
   }
   c.ver = s;
@@ -329,6 +338,17 @@ export function drawGround(ctx, v) {
     ctx.drawImage(c.canvas, dx, dy, dx2 - dx, dy2 - dy);
   }
 }
+// Weiche Schlagschatten von Bäumen und Gebäuden (Welt-Transform gesetzt, vor den Figuren zeichnen)
+export function drawShadows(ctx, v) {
+  visRange(v, vr);
+  const sh = SPR.shadow;
+  for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
+    const c = chunkAt(cx, cy); if (!c || c.ver !== W.season) continue;
+    if (c.bld) { const b = c.bld, x0 = b.x * T, y0 = b.y * T, w = b.w * T, h = b.h * T; ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(x0 + w, y0 + 2, 15, h + 10); ctx.fillRect(x0 + 12, y0 + h, w - 12, 12); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(x0 + w + 15, y0 + 10, 7, h + 9); ctx.fillRect(x0 + 20, y0 + h + 12, w + 2, 7); }
+    const tr = c.trees; if (!tr) continue;
+    for (let k = 0; k < tr.length; k++) { const i = tr[k]; ctx.drawImage(sh, (cx * CH + (i & 15)) * T - 22, (cy * CH + (i >> 4)) * T - 10, 92, 62); }
+  }
+}
 // Baumkronen über den Figuren (Welt-Transform muss gesetzt sein); durchscheinend, wenn der Spieler darunter steht
 export function drawCanopies(ctx, v, px, py) {
   visRange(v, vr);
@@ -339,7 +359,7 @@ export function drawCanopies(ctx, v, px, py) {
     for (let k = 0; k < tr.length; k++) {
       const i = tr[k], wx = (cx * CH + (i & 15)) * T + 16, wy = (cy * CH + (i >> 4)) * T + 16;
       ctx.globalAlpha = (px > wx - 24 && px < wx + 24 && py > wy - 46 && py < wy + 8) ? 0.4 : 1;
-      ctx.drawImage(cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], wx - 27, wy - 44, 54, 54);
+      const sz = 62 + ((i * 13) % 5) * 4; ctx.drawImage(cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], wx - sz / 2, wy - sz / 2 - 16, sz, sz);
     }
   }
   ctx.globalAlpha = 1;
@@ -357,7 +377,7 @@ export function drawRoofs(ctx, v, ptx, pty) {
     const col = W.season === 3 ? '#cfd6da' : ROOFCOL[b.type];
     ctx.fillStyle = 'rgba(0,0,0,0.3)'; ctx.fillRect(x, y + h, w, Math.round(5 * s));          // Traufschatten auf der Fassade
     ctx.fillStyle = col; ctx.fillRect(x, y, w, h);
-    const st = Math.max(2, Math.round(6 * s)), half = Math.max(1, st >> 1);
+    const st = Math.max(2, Math.round(4 * s)), half = Math.max(1, st >> 1);
     ctx.fillStyle = shade(col, 0.86); for (let k = 0; k < w; k += st) ctx.fillRect(x + k, y, half, h);   // Wellblech
     ctx.fillStyle = shade(col, 1.22); ctx.fillRect(x, y + Math.round(h * 0.42), w, Math.max(1, Math.round(2 * s)));    // First
     ctx.fillStyle = 'rgba(0,0,0,0.16)'; ctx.fillRect(x, y + Math.round(h * 0.42), w, h - Math.round(h * 0.42));   // abgewandte Dachhälfte

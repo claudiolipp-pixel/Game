@@ -47,7 +47,7 @@ export function drawWeather(ctx, v, dt) {
     }
     ctx.imageSmoothingEnabled = true; ctx.globalAlpha = w === 'fog' ? 1 : 0.6;
     const ps = Math.max(W, H) * 1.25, px = v.px * v.scale + v.tx, py = v.py * v.scale + v.ty;
-    ctx.drawImage(fog, px - ps / 2, py - ps / 2, ps, ps); ctx.globalAlpha = 1; ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(fog, px - ps / 2, py - ps / 2, ps, ps); ctx.globalAlpha = 1;
   } else if (w === 'heat') { ctx.fillStyle = 'rgba(255,170,60,0.09)'; ctx.fillRect(0, 0, W, H); }
   if (G.lightning > 0.2) { ctx.fillStyle = 'rgba(255,255,255,0.35)'; ctx.fillRect(0, 0, W, H); }
 }

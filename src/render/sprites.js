@@ -36,32 +36,39 @@ export { shade };
 // ---------- Figuren (Blick nach rechts, 16x16) ----------
 let fseed = 1;
 const frnd = () => { fseed = (Math.imul(fseed, 1664525) + 1013904223) >>> 0; return fseed / 4294967296; };
-// Figur von oben (Blick nach rechts, 32x32): runde Formen, Rand-Schattierung, dunkle Kontur
-function humanoid(body, skin, hair, zombie, seed) {
-  return mk(32, 32, x => {
-    fseed = seed || 7; const buf = new Array(1024).fill(null);
-    const put = (cx, cy, rx, ry, col) => {
-      for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let xx = Math.floor(cx - rx); xx <= cx + rx; xx++) {
-        if (xx < 0 || y < 0 || xx > 31 || y > 31) continue;
-        const d = ((xx - cx) / rx) ** 2 + ((y - cy) / ry) ** 2;
-        if (d <= 1) buf[xx + y * 32] = shade(col, (d > 0.7 ? 0.72 : d < 0.22 ? 1.12 : 0.95) + frnd() * 0.08);
-      }
+// Weich gezeichnete Figur von oben (Blick nach rechts). 96px, zwei Lauf-Frames. Koordinaten im 32er-Raster.
+function figure(o, frame) {
+  return mk(96, 96, x => {
+    x.scale(3, 3); fseed = o.seed || 7;
+    const sw = frame ? 1 : -1, dark = 'rgba(14,11,8,0.6)';
+    const ell = (cx, cy, rx, ry, c0, c1) => {
+      const g = x.createRadialGradient(cx - rx * 0.15, cy - ry * 0.15, 0.3, cx, cy, Math.max(rx, ry));
+      g.addColorStop(0, c0); g.addColorStop(1, c1);
+      x.fillStyle = g; x.beginPath(); x.ellipse(cx, cy, rx, ry, 0, 0, 6.283); x.fill(); x.strokeStyle = dark; x.lineWidth = 0.5; x.stroke();
     };
-    const limb = (x0, y0, x1, y1, r, c0, c1, cut) => { for (let t = 0; t <= 1.001; t += 0.07) put(x0 + (x1 - x0) * t, y0 + (y1 - y0) * t, r, r, t > cut ? c1 : c0); };
-    if (zombie) { limb(14, 8, 27, 10.5, 2.3, body, skin, 0.35); limb(14, 24, 26, 20.5, 2.3, body, skin, 0.5); }
-    else { limb(14, 8, 22, 11, 2.4, body, skin, 0.78); limb(14, 24, 22, 21, 2.4, body, skin, 0.78); put(10, 16, 4, 6.5, shade(body, 0.55)); }
-    put(14, 16, 5.6, 9.2, body);
-    if (zombie) for (let i = 0; i < 9; i++) { const xx = 10 + (frnd() * 8 | 0), y = 9 + (frnd() * 14 | 0); if (buf[xx + y * 32]) buf[xx + y * 32] = frnd() < 0.5 ? '#4a1410' : shade(body, 0.55); }
-    put(17.5, 16, 5.2, 5.2, skin);
-    put(15.2, 16, zombie ? 3.2 : 4.2, zombie ? 4.2 : 5.3, hair);
-    if (zombie) { buf[21 + 14 * 32] = '#2a0606'; buf[21 + 18 * 32] = '#2a0606'; buf[22 + 16 * 32] = '#3a0a0a'; }
-    for (let i = 0; i < 1024; i++) {
-      if (buf[i]) { x.fillStyle = buf[i]; x.fillRect(i & 31, i >> 5, 1, 1); continue; }
-      const xx = i & 31, y = i >> 5;
-      if ((xx > 0 && buf[i - 1]) || (xx < 31 && buf[i + 1]) || (y > 0 && buf[i - 32]) || (y < 31 && buf[i + 32])) { x.fillStyle = 'rgba(18,14,10,0.8)'; x.fillRect(xx, y, 1, 1); }
+    const arm = (x0, y0, x1, y1, w, sleeve, skin, cut) => {
+      x.lineCap = 'round';
+      x.strokeStyle = dark; x.lineWidth = w + 0.9; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke();
+      x.strokeStyle = skin; x.lineWidth = w; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x1, y1); x.stroke();
+      x.strokeStyle = sleeve; x.beginPath(); x.moveTo(x0, y0); x.lineTo(x0 + (x1 - x0) * cut, y0 + (y1 - y0) * cut); x.stroke();
+    };
+    // Füße / Beine (Schrittwechsel)
+    ell(14 + sw * 3.4, 12.2, 3.6, 2.4, o.pants, shade(o.pants, 0.5)); ell(14 - sw * 3.4, 19.8, 3.6, 2.4, o.pants, shade(o.pants, 0.5));
+    if (o.zombie) { arm(14.5, 8.6, 26 + sw, 10.6 - sw * 0.7, 4.2, o.body, o.skin, 0.4); arm(14.5, 23.4, 25 - sw, 20.6 + sw * 0.7, 4.2, o.body, o.skin, 0.55); }
+    else { arm(14.5, 8.6, 20.5 + sw * 2.6, 10.2, 4.4, o.body, o.skin, 0.8); arm(14.5, 23.4, 20.5 - sw * 2.6, 21.8, 4.4, o.body, o.skin, 0.8); ell(9.2, 16, 3.6, 6.2, o.pack, shade(o.pack, 0.5)); }
+    ell(14, 16, 5.9, 9.4, shade(o.body, 1.18), shade(o.body, 0.6));
+    if (o.zombie) {      // Risse, Dreck, Blut
+      x.save(); x.beginPath(); x.ellipse(14, 16, 5.6, 9.1, 0, 0, 6.283); x.clip();
+      for (let i = 0; i < 9; i++) { x.fillStyle = frnd() < 0.5 ? 'rgba(90,16,12,0.75)' : 'rgba(20,16,12,0.55)'; x.beginPath(); x.ellipse(9 + frnd() * 10, 8 + frnd() * 16, 0.6 + frnd() * 1.8, 0.5 + frnd() * 1.3, frnd() * 3, 0, 6.283); x.fill(); }
+      x.restore();
     }
+    ell(17.6, 16, 5, 5, shade(o.skin, 1.12), shade(o.skin, 0.68));
+    x.fillStyle = o.hair; x.beginPath(); x.ellipse(16.2, 16, o.zombie ? 3.2 : 4.3, o.zombie ? 3.9 : 4.8, 0, 0, 6.283); x.fill();
+    x.fillStyle = shade(o.hair, 1.5); x.globalAlpha = 0.35; x.beginPath(); x.ellipse(15.6, 14.8, 2, 1.6, 0.5, 0, 6.283); x.fill(); x.globalAlpha = 1;
+    if (o.zombie) { x.fillStyle = '#1c0404'; x.beginPath(); x.arc(21.2, 14.3, 0.75, 0, 6.283); x.arc(21.2, 17.7, 0.75, 0, 6.283); x.fill(); x.fillStyle = 'rgba(110,14,10,0.8)'; x.beginPath(); x.ellipse(22.3, 16.1, 0.7, 1.3, 0, 0, 6.283); x.fill(); }
   });
 }
+const frames = o => [figure(o, 0), figure(o, 1)];
 // Unregelmäßiger, schattierter Klecks (Fels, Busch) mit Bodenschatten
 function blob(size, rx, ry, hi, mid, lo, seed, dots) {
   return mk(size, size, x => {
@@ -77,19 +84,21 @@ function blob(size, rx, ry, hi, mid, lo, seed, dots) {
   });
 }
 const ZBODY = { walker: '#5a5a4a', runner: '#6a5038', crawler: '#3a3e34', screamer: '#8a8a88', brute: '#4a3434' };
+const ZSKIN = { walker: '#7f8c6c', runner: '#9a8a66', crawler: '#59624e', screamer: '#a8aaa4', brute: '#86605a' };
 export const SPR = { z: {}, zf: {}, item: {}, build: {}, tiles: [] };
 
 export function initSprites() {
-  SPR.player = humanoid('#3d4f5c', '#c9a27e', '#3a2a1c', false, 3);
+  SPR.player = frames({ body: '#46525a', skin: '#c79f7c', hair: '#33261a', pants: '#2c2e34', pack: '#5a4a32', seed: 3 });
   for (const k in ZT) {
-    SPR.z[k] = humanoid(ZBODY[k] || '#5a5248', ZT[k].col, shade(ZT[k].col, 0.45), true, 11 + k.length * 13);
-    SPR.zf[k] = humanoid('#6f8ea4', '#b4d2e0', '#e2eef4', true, 5 + k.length * 7);   // Frost-Variante
+    SPR.z[k] = frames({ zombie: true, body: ZBODY[k] || '#5a5248', skin: ZSKIN[k] || ZT[k].col, hair: '#2a241c', pants: '#2e2c28', seed: 11 + k.length * 13 });
+    SPR.zf[k] = frames({ zombie: true, body: '#6b8496', skin: '#a9c4d0', hair: '#dfe9ee', pants: '#48565e', seed: 5 + k.length * 7 });   // Frost-Variante
   }
   for (const k of ['deer', 'rabbit']) SPR.z[k] = SPR.zf[k] = up(mk(16, 16, x => {
     const c = ZT[k].col; R(x, shade(c, 0.8), 3, 5, 9, 6); R(x, c, 4, 6, 7, 4); R(x, c, 11, 6, 3, 4); R(x, shade(c, 0.6), 13, 6, 1, 1); R(x, shade(c, 0.6), 13, 9, 1, 1);
     R(x, shade(c, 0.6), 4, 4, 2, 1); R(x, shade(c, 0.6), 4, 11, 2, 1); R(x, shade(c, 0.6), 9, 4, 2, 1); R(x, shade(c, 0.6), 9, 11, 2, 1); R(x, '#eee', 2, 7, 1, 2);
     if (k === 'deer') { R(x, '#d8c8a0', 12, 4, 1, 2); R(x, '#d8c8a0', 12, 10, 1, 2); }
   }));
+  SPR.shadow = mk(64, 64, x => { const g = x.createRadialGradient(32, 32, 2, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.6, 'rgba(0,0,0,0.3)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); });
   SPR.light = mk(128, 128, x => {
     const g = x.createRadialGradient(64, 64, 4, 64, 64, 64);
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.7)'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -204,31 +213,47 @@ export const ROOFCOL = { house: '#4e5052', market: '#3e4a52', hardware: '#5a4a34
 
 let lcg = 1;
 const rnd = () => { lcg = (Math.imul(lcg, 1664525) + 1013904223) >>> 0; return lcg / 4294967296; };
-function canopy(p, s, variant) {
-  return mk(48, 48, x => {
-    lcg = 77 + variant * 131 + s * 17;
-    const hi = shade(p.tree, 1.2), lo = shade(p.treeB, 0.72), cl = [];
-    for (let i = 0; i < 9; i++) cl.push(8 + rnd() * 32, 8 + rnd() * 30);      // Blattbüschel
-    for (let y = 0; y < 48; y++) for (let xx = 0; xx < 48; xx++) {
-      const dx = xx - 23.5, dy = (y - 22.5) * 1.06, d = Math.sqrt(dx * dx + dy * dy) + rnd() * 4.5 + Math.sin(Math.atan2(dy, dx) * 5 + variant * 2) * 1.6;
-      if (d > 21.5) continue;
-      let near = 99; for (let i = 0; i < cl.length; i += 2) { const q = Math.hypot(xx - cl[i], y - cl[i + 1]); if (q < near) near = q; }
-      const lit = (-dx - dy) / 34 + rnd() * 0.5 - near * 0.045 + 0.2;
-      x.fillStyle = d > 19.5 ? lo : lit > 0.5 ? hi : lit > 0.08 ? p.tree : lit > -0.3 ? p.treeB : lo;
-      x.fillRect(xx, y, 1, 1);
-    }
-    if (s === 3) for (let i = 0; i < 90; i++) { x.fillStyle = rnd() < 0.5 ? '#f4f8fa' : '#dfe8ec'; x.fillRect(7 + (rnd() * 32 | 0), 4 + (rnd() * 24 | 0), 2, 1); }
+// Gemalte Laubmasse aus vielen weichen Büscheln (Licht von oben links). size = Sprite-Kantenlänge
+function foliage(size, p, s, variant, berries) {
+  return mk(size, size, x => {
+    lcg = 77 + variant * 131 + s * 17 + size;
+    const c = size / 2, R0 = size * 0.4, hi = shade(p.tree, 1.28), lo = shade(p.treeB, 0.62);
+    const clump = (n, spread, rmin, rmax, col, alpha, bias) => {
+      x.fillStyle = col; x.globalAlpha = alpha;
+      for (let i = 0; i < n; i++) { const a = rnd() * 6.283, d = Math.sqrt(rnd()) * spread, r = rmin + rnd() * (rmax - rmin); x.beginPath(); x.arc(c + Math.cos(a) * d - bias, c + Math.sin(a) * d - bias, r, 0, 6.283); x.fill(); }
+    };
+    clump(16, R0 * 0.72, R0 * 0.3, R0 * 0.48, lo, 1, 0);
+    clump(22, R0 * 0.72, R0 * 0.2, R0 * 0.36, p.treeB, 0.95, size * 0.02);
+    clump(30, R0 * 0.66, R0 * 0.12, R0 * 0.26, p.tree, 0.85, size * 0.045);
+    clump(12, R0 * 0.5, R0 * 0.14, R0 * 0.26, hi, 0.2, size * 0.09);
+    clump(90, R0 * 0.8, R0 * 0.02, R0 * 0.055, hi, 0.3, size * 0.05);        // Blatt-Textur hell
+    clump(110, R0 * 0.86, R0 * 0.02, R0 * 0.06, lo, 0.38, -size * 0.02);      // Blatt-Textur dunkel
+    clump(8, R0 * 0.5, R0 * 0.12, R0 * 0.22, lo, 0.22, -size * 0.08);         // Schattenseite
+    if (s === 3) { clump(40, R0 * 0.6, R0 * 0.06, R0 * 0.2, '#eef3f6', 0.8, size * 0.06); clump(20, R0 * 0.5, R0 * 0.05, R0 * 0.12, '#ffffff', 0.7, size * 0.09); }
+    if (berries) clump(9, R0 * 0.55, size * 0.025, size * 0.04, '#8a2038', 1, 0);
+    x.globalAlpha = 1;
+  });
+}
+function boulder(s) {
+  return mk(64, 64, x => {
+    lcg = 400 + s;
+    x.fillStyle = 'rgba(0,0,0,0.3)'; x.beginPath(); x.ellipse(36, 40, 25, 15, 0, 0, 6.283); x.fill();
+    const g = x.createRadialGradient(24, 22, 2, 32, 32, 28); g.addColorStop(0, s === 3 ? '#e6ecef' : '#a3a59c'); g.addColorStop(0.55, '#74766f'); g.addColorStop(1, '#3f413d');
+    x.fillStyle = g; x.beginPath();
+    for (let i = 0; i < 11; i++) { const a = i / 11 * 6.283, r = 21 + rnd() * 6, px = 32 + Math.cos(a) * r * 1.12, py = 31 + Math.sin(a) * r * 0.9; i ? x.lineTo(px, py) : x.moveTo(px, py); }
+    x.closePath(); x.fill(); x.strokeStyle = 'rgba(20,20,18,0.55)'; x.lineWidth = 1.2; x.stroke();
+    x.strokeStyle = 'rgba(30,30,28,0.45)'; x.lineWidth = 1; for (let i = 0; i < 4; i++) { x.beginPath(); const sx = 18 + rnd() * 26, sy = 20 + rnd() * 20; x.moveTo(sx, sy); x.lineTo(sx + rnd() * 12 - 4, sy + rnd() * 10); x.stroke(); }
   });
 }
 function makeTileSet(s) {
   const p = PAL[s], T = {};
   // Stamm + Bodenschatten (Krone wird separat über den Figuren gezeichnet)
-  T.tree = up(mk(16, 16, x => { R(x, 'rgba(0,0,0,.28)', 1, 7, 14, 8); R(x, 'rgba(0,0,0,.18)', 3, 5, 11, 11); R(x, '#3e3020', 6, 4, 4, 9); R(x, '#54422c', 7, 4, 2, 9); R(x, '#2c2216', 5, 12, 6, 2); }));
-  T.canopy = [canopy(p, s, 0), canopy(p, s, 1), canopy(p, s, 2)];
+  T.tree = up(mk(16, 16, x => { R(x, '#3e3020', 6, 4, 4, 9); R(x, '#54422c', 7, 4, 2, 9); R(x, '#2c2216', 5, 12, 6, 2); }));
+  T.canopy = [foliage(176, p, s, 0), foliage(176, p, s, 1), foliage(176, p, s, 2)];
   T.stump = up(mk(16, 16, x => { R(x, '#5c3f22', 5, 5, 6, 6); R(x, '#c9a070', 6, 6, 4, 4); R(x, '#94693c', 7, 7, 2, 2); }));
-  T.rock = blob(32, 12, 10, s === 3 ? '#e4eaee' : '#8e9088', '#6c6e68', '#4c4e4a', 21 + s);
-  T.bush = blob(32, 13, 11.5, shade(p.bush, 1.2), p.bush, shade(p.bush, 0.7), 31 + s, '#8a2440');
-  T.bushE = blob(32, 13, 11.5, shade(p.bush, 1.2), p.bush, shade(p.bush, 0.7), 31 + s, null);
+  T.rock = boulder(s);
+  T.bush = foliage(64, { tree: p.bush, treeB: shade(p.bush, 0.75) }, s, 5, s !== 3);
+  T.bushE = foliage(64, { tree: p.bush, treeB: shade(p.bush, 0.75) }, s, 5, false);
   T.reed = up(mk(16, 16, x => { for (let i = 0; i < 5; i++) { R(x, s === 3 ? '#a8a890' : '#7a8a45', 2 + i * 3, 4 + (i * 5) % 6, 1, 6); R(x, '#5a4020', 2 + i * 3, 3 + (i * 5) % 6, 1, 2); } }));
   T.crop = up(mk(16, 16, x => { for (let i = 0; i < 3; i++) { R(x, p.crop, 2 + i * 5, 3, 2, 10); R(x, shade(p.crop, 1.2), 2 + i * 5, 3, 2, 3); } }));
   T.cropE = up(mk(16, 16, x => { for (let i = 0; i < 3; i++) R(x, shade(p.farmB, 0.85), 2 + i * 5, 6, 2, 5); }));
