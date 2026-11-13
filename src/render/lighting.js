@@ -9,6 +9,8 @@ export function addLight(x, y, r, a) { if (lights.n >= 64) return; const i = lig
 
 export function drawLighting(ctx, v) {
   const e = G.env, p = G.player;
+  if (e.season === 3) { ctx.fillStyle = 'rgba(46,62,132,0.17)'; ctx.fillRect(0, 0, v.w, v.h); }      // kaltes, blaues Winterlicht
+  else if (e.weather !== 'clear' && e.weather !== 'heat') { ctx.fillStyle = 'rgba(50,60,90,0.1)'; ctx.fillRect(0, 0, v.w, v.h); }
   if (e.dark > 0.02 && e.dark < 0.8 && !e.bloodMoon) { ctx.fillStyle = 'rgba(255,128,48,' + (Math.sin(e.dark / 0.8 * Math.PI) * 0.17).toFixed(3) + ')'; ctx.fillRect(0, 0, v.w, v.h); }   // warmes Dämmerungslicht
   let dark = e.dark * 0.94;
   if (e.weather === 'storm' || e.weather === 'blizzard') dark = Math.max(dark, 0.35); else if (e.weather === 'rain' || e.weather === 'fog') dark = Math.max(dark, 0.18);

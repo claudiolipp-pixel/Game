@@ -24,6 +24,12 @@ export function updateTime(dt) {
   else if (h > S.sunset - tw) d = (h - (S.sunset - tw)) / (2 * tw);
   else d = 0;
   e.dark = d;
+  // Sonnenstand: Schatten wandern von West (morgens) über Süd (mittags) nach Ost (abends), lang bei tiefer Sonne
+  const st = Math.max(0, Math.min(1, (h - S.sunrise) / (S.sunset - S.sunrise))), k = Math.abs(st - 0.5) * 2;
+  e.shAng = Math.PI - st * Math.PI;
+  e.shLen = 0.6 + (e.season === 3 ? 0.55 : 0) + 1.9 * k * k;
+  const wf = { clear: 1, heat: 1, snow: 0.55, rain: 0.35, fog: 0.22, storm: 0.2, blizzard: 0.15 }[e.weather];
+  e.shA = 0.36 * (1 - d) * (wf === undefined ? 1 : wf);
   const bm = ((day + 1) % E === 0 && h > S.sunset + 0.6) || (day > 0 && day % E === 0 && h < S.sunrise - 0.6);
   if (bm && !e.bloodMoon) { toast('BLUTMOND! Die Horde kommt…', true); sfx('bloodmoon'); }
   if (!bm && e.bloodMoon) toast('Der Blutmond ist vorüber.');

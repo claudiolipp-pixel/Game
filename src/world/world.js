@@ -8,8 +8,8 @@ export const T = CFG.TILE, CH = CFG.CHUNK, CPX = T * CH;
 // Boden
 export const G_GRASS = 0, G_FOREST = 1, G_FARM = 2, G_SWAMP = 3, G_WATER = 4, G_SAND = 5, G_ROAD = 6, G_PAVE = 7, G_FLOOR = 8;
 // Objekte
-export const O_NONE = 0, O_TREE = 1, O_ROCK = 2, O_BUSH = 3, O_BUSH_E = 4, O_WALL = 5, O_CRATE = 6, O_CRATE_O = 7, O_STUMP = 8, O_REED = 9, O_WINDOW = 10, O_CROP = 11;
-const SOLID = new Uint8Array(16); SOLID[O_TREE] = SOLID[O_ROCK] = SOLID[O_WALL] = SOLID[O_CRATE] = SOLID[O_CRATE_O] = SOLID[O_WINDOW] = 1;
+export const O_NONE = 0, O_TREE = 1, O_ROCK = 2, O_BUSH = 3, O_BUSH_E = 4, O_WALL = 5, O_CRATE = 6, O_CRATE_O = 7, O_STUMP = 8, O_REED = 9, O_WINDOW = 10, O_CROP = 11, O_CAR = 12, O_CAR2 = 13, O_CAR_O = 14;
+const SOLID = new Uint8Array(16); SOLID[O_TREE] = SOLID[O_ROCK] = SOLID[O_WALL] = SOLID[O_CRATE] = SOLID[O_CRATE_O] = SOLID[O_WINDOW] = SOLID[O_CAR] = SOLID[O_CAR2] = SOLID[O_CAR_O] = 1;
 const OPAQUE = new Uint8Array(16); OPAQUE[O_TREE] = OPAQUE[O_WALL] = 1;
 
 export const W = {
@@ -91,6 +91,10 @@ function genChunk(cx, cy) {
   else if ((gc === G_GRASS || gc === G_FOREST) && h < 0.016 && (Math.abs(cx) > 2 || Math.abs(cy) > 2)) type = 'military';
   else if ((gc === G_GRASS || gc === G_FOREST || gc === G_SWAMP) && h > 0.94) type = 'house';     // einsame Hütte
   if (type) placeBuilding(c, type);
+  if ((gc === G_PAVE || vil) && hash2(cx, cy, sd + 90) > 0.4) {      // Autowrack am Straßenrand
+    const i = 3 + Math.floor(hash2(cx, cy, sd + 91) * 10) + CH;
+    if (!o[i] && !o[i + 1] && g[i] !== G_FLOOR && g[i + 1] !== G_FLOOR && g[i] !== G_WATER && g[i + 1] !== G_WATER) { o[i] = O_CAR; o[i + 1] = O_CAR2; }
+  }
   // gespeicherte Änderungen anwenden
   const m = W.mods[key(cx, cy)];
   if (m) for (const i in m) o[i] = m[i];
@@ -264,6 +268,7 @@ function renderChunk(c) {
   if (!c.canvas) { c.canvas = cpool.pop() || document.createElement('canvas'); c.canvas.width = c.canvas.height = CS; c.ctx = c.canvas.getContext('2d', { alpha: false }); }
   const x = c.ctx, s = W.season, p = PAL[s], ts = SPR.tiles[s], tx_ = tex(s), cols = rgbOf(s), type = c.bld ? c.bld.type : 'house', PW = CH + 2;
   const trees = c.trees || (c.trees = []); trees.length = 0;
+  const cars = c.cars || (c.cars = []); cars.length = 0;
   if (!pimg) { pimg = x.createImageData(CS, CS); p32 = new Uint32Array(pimg.data.buffer); }
   for (let ly = -1; ly <= CH; ly++) for (let lx = -1; lx <= CH; lx++) gpad[lx + 1 + (ly + 1) * PW] = gAt(c, lx, ly);
   const wx0 = c.cx * CS, wy0 = c.cy * CS;
@@ -279,7 +284,8 @@ function renderChunk(c) {
       else if (g === G_WATER) v = (v >> 1) + (((wy + (mott[(wx & 255) + dy8] >> 1)) & 7) === 0 ? 9 : 0);
       else if (g === G_PAVE) { if ((wx & 31) === 0 || (wy & 31) === 0 || ((wx & 31) === 16 && (wy & 32))) v -= 15; }
       else if (g === G_FLOOR) { v >>= 1; if ((wy & 15) === 0 || ((wx + ((wy >> 4) & 1) * 16) & 31) === 0) v -= 20; }
-      else if (g === G_ROAD) v += ((h >>> 20) & 31) === 0 ? -22 : 0;
+      else if (g === G_ROAD) { v += ((h >>> 20) & 31) === 0 ? -22 : 0; const q = ((px >> 5) === 0 ? px : py) & 31; if ((q > 7 && q < 12) || (q > 19 && q < 24)) v -= s === 3 ? 20 : 9; }
+      if (s === 3 && NAT[g] && g !== G_WATER) v += (mott[((wx >> 2) & 255) + (((wy + (dispX[(wx & 255) + dy8] >> 1)) & 255) << 8)] * 1.5) | 0;    // Schneeverwehungen
       const cc = cols[g]; let r = cc[0] + v, gg = cc[1] + v, b = cc[2] + v;
       if (g <= G_FOREST) {            // kahle Erdflecken in Wiese/Wald
         const pt = patch[((wx >> 1) & 255) + (((wy >> 1) & 255) << 8)];
@@ -313,6 +319,7 @@ function renderChunk(c) {
         if (!south && ob === O_WINDOW) { x.drawImage(spr, px, py); x.fillStyle = '#4a6470'; x.fillRect(px + 10, py + 8, 12, 16); spr = null; }
         break;
       }
+      case O_CAR: case O_CAR_O: x.drawImage(ts.car[(((tx * 7 + ty * 3) % 3) + 3) % 3], px, py - 8, 64, 40); cars.push(i); break;
       case O_CRATE: spr = ts.crate; break; case O_CRATE_O: spr = ts.crateO; break;
     }
     if (spr) { if (ob === O_BUSH || ob === O_BUSH_E) x.drawImage(spr, px - 3, py - 3, 38, 38); else x.drawImage(spr, px, py, T, T); }
@@ -340,28 +347,43 @@ export function drawGround(ctx, v) {
   }
   ctx.imageSmoothingEnabled = true;
 }
-// Weiche Schlagschatten von Bäumen und Gebäuden (Welt-Transform gesetzt, vor den Figuren zeichnen)
+// Schlagschatten nach Sonnenstand (Welt-Transform gesetzt, vor den Figuren zeichnen): Gebäude, Autos, Bäume
+function castRect(ctx, x0, y0, x1, y1, dx, dy) {
+  ctx.beginPath();
+  if (dx >= 0) { ctx.moveTo(x0, y0); ctx.lineTo(x1, y0); ctx.lineTo(x1 + dx, y0 + dy); ctx.lineTo(x1 + dx, y1 + dy); ctx.lineTo(x0 + dx, y1 + dy); ctx.lineTo(x0, y1); }
+  else { ctx.moveTo(x1, y0); ctx.lineTo(x0, y0); ctx.lineTo(x0 + dx, y0 + dy); ctx.lineTo(x0 + dx, y1 + dy); ctx.lineTo(x1 + dx, y1 + dy); ctx.lineTo(x1, y1); }
+  ctx.closePath(); ctx.fill();
+}
 export function drawShadows(ctx, v) {
-  visRange(v, vr);
-  const sh = SPR.shadow;
+  const e = G.env; if (e.shA < 0.02) return;
+  visRange(v, vr); vr[0]--; vr[1]++; vr[2]--;
+  const ca = Math.cos(e.shAng) * e.shLen, sa = Math.sin(e.shAng) * e.shLen, sh = SPR.tiles[W.season].treeShadow, rot = e.shAng + Math.PI / 2;
+  ctx.globalAlpha = e.shA; ctx.fillStyle = '#121a3c';
   for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
     const c = chunkAt(cx, cy); if (!c || c.ver !== W.season) continue;
-    if (c.bld) { const b = c.bld, x0 = b.x * T, y0 = b.y * T, w = b.w * T, h = b.h * T; ctx.fillStyle = 'rgba(0,0,0,0.2)'; ctx.fillRect(x0 + w, y0 + 2, 15, h + 10); ctx.fillRect(x0 + 12, y0 + h, w - 12, 12); ctx.fillStyle = 'rgba(0,0,0,0.12)'; ctx.fillRect(x0 + w + 15, y0 + 10, 7, h + 9); ctx.fillRect(x0 + 20, y0 + h + 12, w + 2, 7); }
+    if (c.bld) { const b = c.bld; castRect(ctx, b.x * T, b.y * T - 8, (b.x + b.w) * T, (b.y + b.h) * T, ca * 44, sa * 44); }
+    const cr = c.cars; if (cr) for (let k = 0; k < cr.length; k++) { const i = cr[k], x0 = (cx * CH + (i & 15)) * T + 3, y0 = (cy * CH + (i >> 4)) * T + 6; castRect(ctx, x0, y0, x0 + 58, y0 + 22, ca * 15, sa * 15); }
     const tr = c.trees; if (!tr) continue;
-    for (let k = 0; k < tr.length; k++) { const i = tr[k]; ctx.drawImage(sh, (cx * CH + (i & 15)) * T - 22, (cy * CH + (i >> 4)) * T - 10, 92, 62); }
+    for (let k = 0; k < tr.length; k++) {
+      const i = tr[k];
+      ctx.save(); ctx.translate((cx * CH + (i & 15)) * T + 16, (cy * CH + (i >> 4)) * T + 22); ctx.rotate(rot); ctx.scale(1, e.shLen);
+      ctx.drawImage(sh[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], -38, -100, 76, 100); ctx.restore();
+    }
   }
+  ctx.globalAlpha = 1;
 }
-// Baumkronen über den Figuren (Welt-Transform muss gesetzt sein); durchscheinend, wenn der Spieler darunter steht
+// Bäume über den Figuren (Welt-Transform gesetzt): Laubkronen durchscheinend, wenn der Spieler darunter steht; im Winter kahl
 export function drawCanopies(ctx, v, px, py) {
   visRange(v, vr);
-  const cs = SPR.tiles[W.season].canopy;
+  const ts = SPR.tiles[W.season], cs = ts.canopy;
   for (let cy = vr[2]; cy <= vr[3]; cy++) for (let cx = vr[0]; cx <= vr[1]; cx++) {
     const c = chunkAt(cx, cy); if (!c || !c.trees || c.ver !== W.season) continue;
     const tr = c.trees;
     for (let k = 0; k < tr.length; k++) {
-      const i = tr[k], wx = (cx * CH + (i & 15)) * T + 16, wy = (cy * CH + (i >> 4)) * T + 16;
+      const i = tr[k], wx = (cx * CH + (i & 15)) * T + 16, wy = (cy * CH + (i >> 4)) * T + 16, img = cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3];
+      if (ts.bare) { const w = 70 + ((i * 13) % 5) * 5; ctx.drawImage(img, wx - w / 2, wy + 8 - w * 1.3, w, w * 1.3); continue; }
       ctx.globalAlpha = (px > wx - 24 && px < wx + 24 && py > wy - 46 && py < wy + 8) ? 0.4 : 1;
-      const sz = 62 + ((i * 13) % 5) * 4; ctx.drawImage(cs[(((i * 7 + cx * 3 + cy) % 3) + 3) % 3], wx - sz / 2, wy - sz / 2 - 16, sz, sz);
+      const sz = 62 + ((i * 13) % 5) * 4; ctx.drawImage(img, wx - sz / 2, wy - sz / 2 - 16, sz, sz);
     }
   }
   ctx.globalAlpha = 1;

@@ -204,6 +204,7 @@ export const LOOT = {
   military: [['ammoR', 10, 5, 12], ['ammo9', 6, 6, 12], ['shells', 4, 3, 6], ['rifle', 2.5, 1, 1], ['pistol', 1.5, 1, 1], ['vest', 2, 1, 1], ['medkit', 3, 1, 1], ['antibio', 2, 1, 1],
     ['powder', 5, 1, 3], ['bp_mg', 1.8, 1, 1], ['bp_flamer', 1.6, 1, 1], ['bp_bomb', 1.6, 1, 1], ['bp_power', 1.2, 1, 1], ['can', 4, 1, 3], ['pack2', 1, 1, 1], ['fuel', 3, 1, 2]],
   farm: [['veg', 8, 1, 3], ['seeds', 8, 2, 4], ['wood', 5, 2, 4], ['can', 3, 1, 1], ['axe', 2, 1, 1], ['cloth', 3, 1, 2], ['bow', 1.2, 1, 1], ['arrow', 2, 3, 6], ['fuel', 2, 1, 1], ['bottle', 3, 1, 1], ['rawmeat', 2, 1, 2]],
+  car: [['fuel', 9, 1, 2], ['scrap', 10, 1, 3], ['elec', 5, 1, 2], ['cloth', 4, 1, 2], ['can', 2, 1, 1], ['bottle', 3, 1, 1], ['crowbar', 1.2, 1, 1], ['ammo9', 1, 2, 6], ['bandage', 2, 1, 1], ['torch', 1.5, 1, 1]],
   zombie: [['cloth', 6, 1, 1], ['scrap', 3, 1, 1], ['ammo9', 1.5, 1, 4], ['can', 1, 1, 1], ['bandage', 1, 1, 1], ['bottle', 1, 1, 1]],
 };
 export const BLD_NAMES = { house: 'Haus', market: 'Supermarkt', hardware: 'Baumarkt', police: 'Polizeistation', gas: 'Tankstelle', military: 'Militärposten', farm: 'Bauernhof' };

@@ -36,9 +36,15 @@ export function resize() {
 export function playerScreen(out) { out.x = (view.px * view.scale + view.tx) / view.css; out.y = (view.py * view.scale + view.ty) / view.css; }
 
 function drawSprite(img, x, y, ang, sz) {
-  const s = view.scale;
+  const s = view.scale, e = G.env, ga = ctx.globalAlpha;
   ctx.setTransform(s, 0, 0, s, view.tx, view.ty);
-  ctx.drawImage(SPR.shadow, x - 12 * sz, y - 7 * sz, 30 * sz, 22 * sz);
+  ctx.globalAlpha = 0.55 * ga; ctx.drawImage(SPR.shadow, x - 11 * sz, y - 7 * sz, 24 * sz, 17 * sz);          // Kontaktschatten
+  if (e.shA > 0.02) {                                                                                       // langer Schlagschatten
+    const ca = Math.cos(e.shAng), sa = Math.sin(e.shAng);
+    ctx.setTransform(ca * s, sa * s, -sa * s, ca * s, x * s + view.tx, y * s + view.ty);
+    ctx.globalAlpha = Math.min(1, e.shA * 1.5) * ga; ctx.drawImage(SPR.shadow, -7 * sz, -8 * sz, (16 + 30 * e.shLen) * sz, 16 * sz);
+  }
+  ctx.globalAlpha = ga;
   ctx.setTransform(Math.cos(ang) * s * sz, Math.sin(ang) * s * sz, -Math.sin(ang) * s * sz, Math.cos(ang) * s * sz, x * s + view.tx, y * s + view.ty);
   ctx.drawImage(img, -16, -16, 32, 32);
 }

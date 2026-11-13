@@ -15,5 +15,5 @@ export const G = {
   tick: 0,
   shake: 0,
   // Umweltwerte (von world/time.js gesetzt)
-  env: { day: 0, year: 0, season: 0, hour: 12, dark: 0, sight: 1, hear: 1, zSpeed: 1, weather: 'clear', temp: 15, bloodMoon: false, raining: false, snow: 0 },
+  env: { day: 0, year: 0, season: 0, hour: 12, dark: 0, sight: 1, hear: 1, zSpeed: 1, weather: 'clear', temp: 15, bloodMoon: false, raining: false, snow: 0, shAng: 1.2, shLen: 1, shA: 0.3 },
 };

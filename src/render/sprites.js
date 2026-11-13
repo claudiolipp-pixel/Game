@@ -99,6 +99,7 @@ export function initSprites() {
     if (k === 'deer') { R(x, '#d8c8a0', 12, 4, 1, 2); R(x, '#d8c8a0', 12, 10, 1, 2); }
   }));
   SPR.shadow = mk(64, 64, x => { const g = x.createRadialGradient(32, 32, 2, 32, 32, 32); g.addColorStop(0, 'rgba(0,0,0,0.55)'); g.addColorStop(0.6, 'rgba(0,0,0,0.3)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); });
+  SPR.flake = mk(48, 48, x => { const g = x.createRadialGradient(24, 24, 1, 24, 24, 24); g.addColorStop(0, 'rgba(255,255,255,0.95)'); g.addColorStop(0.45, 'rgba(240,244,255,0.5)'); g.addColorStop(1, 'rgba(230,238,255,0)'); x.fillStyle = g; x.fillRect(0, 0, 48, 48); });
   SPR.light = mk(128, 128, x => {
     const g = x.createRadialGradient(64, 64, 4, 64, 64, 64);
     g.addColorStop(0, 'rgba(255,255,255,1)'); g.addColorStop(0.55, 'rgba(255,255,255,0.7)'); g.addColorStop(1, 'rgba(255,255,255,0)');
@@ -206,7 +207,7 @@ export const PAL = [
   { grass: '#6b7340', grassB: '#5f6838', forest: '#56603a', farm: '#74603c', farmB: '#665434', swamp: '#4c5238', water: '#3c5a66', waterB: '#4a6a76', sand: '#8f8562', road: '#4a4a48', pave: '#6a6a62', floor: '#75684f', tree: '#4f6a36', treeB: '#3a5028', bush: '#58703a', flower: '#b8a85a', crop: '#7d8a44' },
   { grass: '#7a7a3e', grassB: '#6e6e36', forest: '#5c6434', farm: '#84703c', farmB: '#746234', swamp: '#535434', water: '#3a5c6a', waterB: '#486c7a', sand: '#9a8c60', road: '#4c4c49', pave: '#6e6e64', floor: '#75684f', tree: '#4a6430', treeB: '#364a22', bush: '#566a32', flower: '#c8c0a0', crop: '#a8963c' },
   { grass: '#7c6e3c', grassB: '#6e6034', forest: '#66522e', farm: '#6a5234', farmB: '#5c462c', swamp: '#54482e', water: '#3a5260', waterB: '#47606e', sand: '#8a7c5a', road: '#474745', pave: '#66665e', floor: '#75684f', tree: '#9a5c28', treeB: '#6e3c1c', bush: '#7c5a2a', flower: '#8a4428', crop: '#a07030' },
-  { grass: '#c9d0d2', grassB: '#bcc4c8', forest: '#b8c2c4', farm: '#c0c4c0', farmB: '#b0b6b2', swamp: '#a4aeae', water: '#9ab8c4', waterB: '#acc8d2', sand: '#c2c2b8', road: '#7c8084', pave: '#a0a4a6', floor: '#75684f', tree: '#dfe6e8', treeB: '#4c6252', bush: '#b4c2be', flower: '#ffffff', crop: '#989e90' },
+  { grass: '#c6cce0', grassB: '#b4bcd4', forest: '#bcc3d8', farm: '#c0c6d8', farmB: '#aab2c8', swamp: '#a2aac0', water: '#8fa4c0', waterB: '#a4b6ce', sand: '#bfc2d2', road: '#8d93a8', pave: '#a8aec2', floor: '#75684f', tree: '#dfe6f0', treeB: '#4a5266', bush: '#b0bace', flower: '#ffffff', crop: '#9298a8' },
 ];
 export const WALLCOL = { house: '#7a5a48', market: '#5f6e72', hardware: '#8a6a3a', police: '#3e4a5c', gas: '#8c8c84', military: '#555c40', farm: '#6e5236' };
 export const ROOFCOL = { house: '#4e5052', market: '#3e4a52', hardware: '#5a4a34', police: '#2c3440', gas: '#7a3a30', military: '#3a402c', farm: '#4c3626' };
@@ -234,6 +235,48 @@ function foliage(size, p, s, variant, berries) {
     x.globalAlpha = 1;
   });
 }
+// Kahler, stehender Winterbaum (Fuß unten Mitte) – wirft lange Ast-Schatten
+function bareTree(variant) {
+  return mk(176, 230, x => {
+    lcg = 900 + variant * 37; x.lineCap = 'round';
+    const branch = (px, py, ang, len, w, depth) => {
+      const ex = px + Math.cos(ang) * len, ey = py + Math.sin(ang) * len;
+      x.strokeStyle = '#2a2530'; x.lineWidth = w; x.beginPath(); x.moveTo(px, py); x.lineTo(ex, ey); x.stroke();
+      if (w > 1.5) { x.strokeStyle = 'rgba(226,232,246,0.85)'; x.lineWidth = Math.max(0.8, w * 0.32); x.beginPath(); x.moveTo(px - w * 0.22, py - w * 0.2); x.lineTo(ex - w * 0.22, ey - w * 0.2); x.stroke(); }
+      if (depth <= 0) return;
+      const n = depth > 3 ? 2 : 2 + (rnd() < 0.45 ? 1 : 0);
+      for (let i = 0; i < n; i++) branch(ex, ey, ang + (i - (n - 1) / 2) * 0.62 + (rnd() - 0.5) * 0.5, len * (0.6 + rnd() * 0.22), w * 0.64, depth - 1);
+    };
+    branch(88, 226, -Math.PI / 2 + (rnd() - 0.5) * 0.2, 64, 9, 5);
+  });
+}
+// Schatten-Silhouette eines stehenden Baums (halbe Auflösung, Fuß unten Mitte)
+function treeShadow(src, leafy) {
+  return mk(88, 115, x => {
+    x.scale(0.5, 0.5);
+    if (leafy) { x.strokeStyle = '#000'; x.lineWidth = 9; x.lineCap = 'round'; x.beginPath(); x.moveTo(88, 226); x.lineTo(88, 120); x.stroke(); x.drawImage(src, 4, 12, 168, 168); }
+    else x.drawImage(src, 0, 0);
+    x.globalCompositeOperation = 'source-in'; x.fillStyle = '#121a3c'; x.fillRect(0, 0, 176, 230);
+  });
+}
+// Autowrack in Schrägsicht (128x80 → 64x40 Welt-Einheiten)
+function carWreck(col, s, variant) {
+  return mk(128, 80, x => {
+    lcg = 300 + variant * 53;
+    const rr = (a, b, w, h, r, c) => { x.fillStyle = c; x.beginPath(); x.roundRect(a, b, w, h, r); x.fill(); };
+    rr(6, 34, 116, 34, 9, shade(col, 0.55));                       // Seitenwand
+    rr(4, 26, 120, 26, 10, col);                                    // Karosserie-Oberseite (Haube/Heck)
+    const g = x.createLinearGradient(0, 26, 0, 52); g.addColorStop(0, 'rgba(255,255,255,0.22)'); g.addColorStop(1, 'rgba(0,0,0,0.25)'); x.fillStyle = g; x.beginPath(); x.roundRect(4, 26, 120, 26, 10); x.fill();
+    rr(34, 16, 62, 30, 7, '#141a22');                               // Fenster
+    rr(38, 19, 25, 12, 3, '#3a4a5c'); rr(67, 19, 25, 12, 3, '#34424f');
+    rr(36, 8, 58, 22, 7, shade(col, 1.12));                         // Dach
+    x.fillStyle = '#0c0c0e'; x.beginPath(); x.ellipse(30, 66, 11, 8, 0, 0, 6.283); x.ellipse(98, 66, 11, 8, 0, 0, 6.283); x.fill();
+    x.fillStyle = '#3a3a3e'; x.beginPath(); x.ellipse(30, 66, 5, 3.6, 0, 0, 6.283); x.ellipse(98, 66, 5, 3.6, 0, 0, 6.283); x.fill();
+    rr(116, 40, 7, 6, 2, '#b8b08a'); rr(5, 40, 6, 6, 2, '#6a2020');
+    for (let i = 0; i < 12; i++) { x.fillStyle = rnd() < 0.5 ? 'rgba(96,52,26,0.55)' : 'rgba(20,16,14,0.4)'; x.beginPath(); x.ellipse(10 + rnd() * 108, 30 + rnd() * 34, 1 + rnd() * 4, 1 + rnd() * 2.5, 0, 0, 6.283); x.fill(); }
+    if (s === 3) { rr(37, 6, 56, 15, 7, '#e8ecf6'); rr(6, 25, 30, 12, 6, '#dfe4f0'); rr(96, 25, 26, 12, 6, '#dfe4f0'); x.fillStyle = 'rgba(160,172,200,0.5)'; x.fillRect(40, 17, 50, 3); }
+  });
+}
 function boulder(s) {
   return mk(64, 64, x => {
     lcg = 400 + s;
@@ -249,7 +292,10 @@ function makeTileSet(s) {
   const p = PAL[s], T = {};
   // Stamm + Bodenschatten (Krone wird separat über den Figuren gezeichnet)
   T.tree = up(mk(16, 16, x => { R(x, '#3e3020', 6, 4, 4, 9); R(x, '#54422c', 7, 4, 2, 9); R(x, '#2c2216', 5, 12, 6, 2); }));
-  T.canopy = [foliage(176, p, s, 0), foliage(176, p, s, 1), foliage(176, p, s, 2)];
+  T.bare = s === 3;
+  T.canopy = T.bare ? [bareTree(0), bareTree(1), bareTree(2)] : [foliage(176, p, s, 0), foliage(176, p, s, 1), foliage(176, p, s, 2)];
+  T.treeShadow = T.canopy.map(c => treeShadow(c, !T.bare));
+  T.car = [carWreck('#5a2e2a', s, 0), carWreck('#3c4650', s, 1), carWreck('#6a6a5e', s, 2)];
   T.stump = up(mk(16, 16, x => { R(x, '#5c3f22', 5, 5, 6, 6); R(x, '#c9a070', 6, 6, 4, 4); R(x, '#94693c', 7, 7, 2, 2); }));
   T.rock = boulder(s);
   T.bush = foliage(64, { tree: p.bush, treeB: shade(p.bush, 0.75) }, s, 5, s !== 3);

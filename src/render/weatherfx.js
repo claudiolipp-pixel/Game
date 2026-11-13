@@ -1,6 +1,7 @@
 // Wetter-Partikel + Overlays (Bildschirmraum, vorallokiert).
 import { G } from '../state.js';
 import { settings } from '../core/save.js';
+import { SPR } from './sprites.js';
 
 const N = 320, fx = new Float32Array(N), fy = new Float32Array(N), fs = new Float32Array(N);
 for (let i = 0; i < N; i++) { fx[i] = Math.random(); fy[i] = Math.random(); fs[i] = 0.6 + Math.random() * 0.8; }
@@ -36,6 +37,14 @@ export function drawWeather(ctx, v, dt) {
       if (fy[i] > 1) fy[i] -= 1; if (fx[i] < 0) fx[i] += 1;
       ctx.fillRect(fx[i] * W, fy[i] * H, sz * fs[i], sz * fs[i]);
     }
+    const nb = bz ? 46 : 28;                         // unscharfe Flocken nah an der Kamera
+    for (let k = 0; k < nb; k++) {
+      const i = N - 1 - k, d = 10 + (k % 7) * 4.5;
+      fy[i] += (bz ? 0.6 : 0.16) * (0.6 + d / 40) * dt; fx[i] -= (bz ? 1.1 : 0.04) * (0.6 + d / 40) * dt;
+      if (fy[i] > 1.05) { fy[i] = -0.05; fx[i] = Math.random(); } if (fx[i] < -0.05) fx[i] += 1.1;
+      ctx.globalAlpha = 0.16 + (k % 5) * 0.07; ctx.drawImage(SPR.flake, fx[i] * W, fy[i] * H, d * u, d * u);
+    }
+    ctx.globalAlpha = 1;
     if (bz) { ctx.fillStyle = 'rgba(225,232,240,0.3)'; ctx.fillRect(0, 0, W, H); }
   }
   if (w === 'fog' || w === 'blizzard') {
