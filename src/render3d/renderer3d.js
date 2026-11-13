@@ -4,7 +4,7 @@
 import { G } from '../state.js';
 import { settings } from '../core/save.js';
 import { BUILD } from '../config.js';
-import { W, T, CH, chunkAt, ensureChunk, prepareChunk, O_TREE, O_ROCK, O_BUSH, O_BUSH_E, O_WALL, O_WINDOW, O_CRATE, O_CRATE_O, O_CAR, O_CAR_O } from '../world/world.js';
+import { W, T, CH, chunkAt, ensureChunk, prepareChunk, isTownChunk, getGround, G_FOREST, G_ROAD, G_FLOOR, O_TREE, O_ROCK, O_BUSH, O_BUSH_E, O_WALL, O_WINDOW, O_CRATE, O_CRATE_O, O_CAR, O_CAR_O } from '../world/world.js';
 import { PAL, WALLCOL, ROOFCOL } from '../render/sprites.js';
 import { lights } from '../render/lighting.js';
 import { hash2 } from '../core/rng.js';
@@ -112,19 +112,44 @@ function sphere(o, cx, cy, cz, rx, ry, rz, col, f, seed, rough) {
     vtx(o, cx + px * rx * q, cy + py * ry * q, cz + pz * rz * q, nx / l, ny / l, nz / l, col, f, k);
   }
 }
-// verjüngter Vierkant von A nach B (Stämme, Äste)
-function prism(o, ax, ay, az, bx, by, bz, ra, rb, col, f) {
+// verjüngtes n-seitiges Rohr von A nach B (Stämme, Äste, Räder, Masten, Leitungen)
+function tube(o, ax, ay, az, bx, by, bz, ra, rb, col, f, n, caps) {
+  n = n || 4;
   let dx = bx - ax, dy = by - ay, dz = bz - az; const l = Math.hypot(dx, dy, dz) || 1; dx /= l; dy /= l; dz /= l;
   let ux = Math.abs(dy) > 0.9 ? 1 : 0, uy = Math.abs(dy) > 0.9 ? 0 : 1, uz = 0;
-  let vx = dy * uz - dz * uy, vy = dz * ux - dx * uz, vz = dx * uy - dy * ux; let m = Math.hypot(vx, vy, vz); vx /= m; vy /= m; vz /= m;
+  let vx = dy * uz - dz * uy, vy = dz * ux - dx * uz, vz = dx * uy - dy * ux; const m = Math.hypot(vx, vy, vz); vx /= m; vy /= m; vz /= m;
   ux = vy * dz - vz * dy; uy = vz * dx - vx * dz; uz = vx * dy - vy * dx;
-  for (let k = 0; k < 4; k++) {
-    const a0 = k * Math.PI / 2, a1 = a0 + Math.PI / 2, am = a0 + Math.PI / 4;
-    const c0 = Math.cos(a0), s0 = Math.sin(a0), c1 = Math.cos(a1), s1 = Math.sin(a1);
-    const p = (r, c, s, X, Y, Z) => [X + (ux * c + vx * s) * r, Y + (uy * c + vy * s) * r, Z + (uz * c + vz * s) * r];
-    quad(o, p(ra, c0, s0, ax, ay, az), p(ra, c1, s1, ax, ay, az), p(rb, c1, s1, bx, by, bz), p(rb, c0, s0, bx, by, bz),
-      [ux * Math.cos(am) + vx * Math.sin(am), uy * Math.cos(am) + vy * Math.sin(am), uz * Math.cos(am) + vz * Math.sin(am)], col, f);
+  const p = (r, a, X, Y, Z) => { const c = Math.cos(a), s2 = Math.sin(a); return [X + (ux * c + vx * s2) * r, Y + (uy * c + vy * s2) * r, Z + (uz * c + vz * s2) * r]; };
+  for (let k = 0; k < n; k++) {
+    const a0 = k * 6.2832 / n, a1 = (k + 1) * 6.2832 / n, am = (a0 + a1) / 2, cm = Math.cos(am), sm = Math.sin(am);
+    quad(o, p(ra, a0, ax, ay, az), p(ra, a1, ax, ay, az), p(rb, a1, bx, by, bz), p(rb, a0, bx, by, bz), [ux * cm + vx * sm, uy * cm + vy * sm, uz * cm + vz * sm], col, f, 0.85 + 0.15 * ((k * 3) % n) / n);
+    if (caps) {
+      for (const q of [p(rb, a0, bx, by, bz), p(rb, a1, bx, by, bz), [bx, by, bz]]) vtx(o, q[0], q[1], q[2], dx, dy, dz, col, f, 0.9);
+      for (const q of [p(ra, a0, ax, ay, az), p(ra, a1, ax, ay, az), [ax, ay, az]]) vtx(o, q[0], q[1], q[2], -dx, -dy, -dz, col, f, 0.9);
+    }
   }
+}
+const prism = (o, ax, ay, az, bx, by, bz, ra, rb, col, f) => tube(o, ax, ay, az, bx, by, bz, ra, rb, col, f, 5);
+function cone(o, cx, y0, cz, r, h, col, f, seed) {
+  const n = 9, l = Math.hypot(r, h);
+  for (let k = 0; k < n; k++) {
+    const a0 = k * 6.2832 / n + seed, a1 = (k + 1) * 6.2832 / n + seed, am = (a0 + a1) / 2, kk = 0.8 + 0.3 * hash2(k, seed * 100 | 0, 5);
+    vtx(o, cx + Math.cos(a0) * r, y0, cz + Math.sin(a0) * r, Math.cos(a0) * h / l, r / l, Math.sin(a0) * h / l, col, f, kk * 0.8);
+    vtx(o, cx + Math.cos(a1) * r, y0, cz + Math.sin(a1) * r, Math.cos(a1) * h / l, r / l, Math.sin(a1) * h / l, col, f, kk * 0.8);
+    vtx(o, cx, y0 + h, cz, Math.cos(am) * h / l, r / l, Math.sin(am) * h / l, col, f, kk * 1.1);
+  }
+}
+// Pyramidenstumpf: unten x∈[a0,a1], oben x∈[b0,b1] (relativ zu cx), Tiefe hz0 → hz1
+function frustum(o, cx, y0, y1, cz, a0, a1, b0, b1, hz0, hz1, col, f) {
+  const P = [[cx + a0, y0, cz - hz0], [cx + a1, y0, cz - hz0], [cx + a1, y0, cz + hz0], [cx + a0, y0, cz + hz0], [cx + b0, y1, cz - hz1], [cx + b1, y1, cz - hz1], [cx + b1, y1, cz + hz1], [cx + b0, y1, cz + hz1]];
+  const mid = [cx + (a0 + a1 + b0 + b1) / 4, (y0 + y1) / 2, cz];
+  const face = (i, j, k, l) => {
+    const A_ = P[i], B = P[j], D = P[l]; let nx = (B[1] - A_[1]) * (D[2] - A_[2]) - (B[2] - A_[2]) * (D[1] - A_[1]), ny = (B[2] - A_[2]) * (D[0] - A_[0]) - (B[0] - A_[0]) * (D[2] - A_[2]), nz = (B[0] - A_[0]) * (D[1] - A_[1]) - (B[1] - A_[1]) * (D[0] - A_[0]);
+    const m = Math.hypot(nx, ny, nz) || 1; nx /= m; ny /= m; nz /= m;
+    if (nx * (A_[0] - mid[0]) + ny * (A_[1] - mid[1]) + nz * (A_[2] - mid[2]) < 0) { nx = -nx; ny = -ny; nz = -nz; }
+    quad(o, P[i], P[j], P[k], P[l], [nx, ny, nz], col, f);
+  };
+  face(0, 1, 5, 4); face(1, 2, 6, 5); face(2, 3, 7, 6); face(3, 0, 4, 7); face(4, 5, 6, 7);
 }
 function gable(o, x0, z0, x1, z1, y0, h, col, f) {
   const alongX = (x1 - x0) >= (z1 - z0);
@@ -190,42 +215,68 @@ function setBuf(r, key, nkey, arr) {
   if (r[key]) { gl.deleteBuffer(r[key]); r[key] = null; }
   r[nkey] = arr.length / STRIDE; if (arr.length) r[key] = mkBuf(arr);
 }
-function tree(o, x, z, s, pal, seed) {
+function tree(o, x, z, s, pal, seed, pine) {
   const h1 = hash2(seed, 3, 11), h2 = hash2(seed, 5, 13), sc = 0.85 + h1 * 0.4, bark = s === 3 ? [0.17, 0.15, 0.19] : [0.24, 0.19, 0.14];
+  if (pine) {        // Nadelbaum: bleibt im Winter grün, mit Schnee auf den Zweigen
+    const g = s === 3 ? [0.2, 0.3, 0.27] : s === 2 ? [0.17, 0.27, 0.16] : [0.14, 0.27, 0.15], hh = 1 + h2 * 0.35;
+    tube(o, x, 0, z, x, 16 * sc * hh, z, 2.6, 2, bark, 1, 5);
+    for (let k = 0; k < 4; k++) {
+      const y = (9 + k * 12) * sc * hh, r = (17 - k * 3.6) * sc;
+      cone(o, x, y, z, r, 19 * sc * hh, g, 1, h1 * 6 + k);
+      if (s === 3) cone(o, x, y + 6 * sc * hh, z, r * 0.74, 13.5 * sc * hh, [0.86, 0.89, 0.96], 1, h1 * 6 + k + 0.3);
+    }
+    return;
+  }
   if (s === 3) {     // kahl
     const th = 26 * sc; prism(o, x, 0, z, x + (h2 - 0.5) * 4, th, z, 3.4, 2.2, bark, 1);
     const br = (ax, ay, az, ang, tilt, len, r, d) => {
       const bx = ax + Math.cos(ang) * Math.cos(tilt) * len, by = ay + Math.sin(tilt) * len, bz = az + Math.sin(ang) * Math.cos(tilt) * len;
-      prism(o, ax, ay, az, bx, by, bz, r, r * 0.55, bark, 1);
+      tube(o, ax, ay, az, bx, by, bz, r, r * 0.55, bark, 1, 4);
       if (d > 0) for (let i = 0; i < 2; i++) br(bx, by, bz, ang + (i ? 0.7 : -0.6) + (hash2(seed + d * 7, i, 17) - 0.5), tilt * 0.75 + 0.15, len * 0.68, r * 0.55, d - 1);
     };
     for (let i = 0; i < 4; i++) br(x + (h2 - 0.5) * 4, th * (0.75 + i * 0.08), z, i * 1.6 + h1 * 6, 0.75 - i * 0.08, 17 * sc, 1.9, 2);
     return;
   }
-  prism(o, x, 0, z, x, 22 * sc, z, 3.2, 2.2, bark, 1);
-  const c1 = hex(pal.tree), c2 = hex(pal.treeB);
-  sphere(o, x, 33 * sc, z, 16 * sc, 14 * sc, 16 * sc, c1, 1, seed, 0.28);
-  sphere(o, x + (h1 - 0.5) * 18, 27 * sc, z + (h2 - 0.5) * 18, 11 * sc, 9 * sc, 11 * sc, c2, 1, seed + 1, 0.3);
-  sphere(o, x - (h2 - 0.5) * 16, 40 * sc, z - (h1 - 0.5) * 14, 9.5 * sc, 8 * sc, 9.5 * sc, c1, 1, seed + 2, 0.3);
+  prism(o, x, 0, z, x + (h2 - 0.5) * 3, 24 * sc, z, 3.3, 2.1, bark, 1);
+  tube(o, x, 15 * sc, z, x + (h1 - 0.5) * 14, 27 * sc, z + (h2 - 0.5) * 14, 1.6, 1, bark, 1, 4);
+  const c1 = hex(pal.tree), c2 = hex(pal.treeB), c3 = c1.map((v, i) => v * (i === 1 ? 1.12 : 1.02));
+  sphere(o, x, 34 * sc, z, 15 * sc, 12.5 * sc, 15 * sc, c1, 1, seed, 0.3);
+  sphere(o, x + (h1 - 0.5) * 20, 28 * sc, z + (h2 - 0.5) * 20, 11 * sc, 9 * sc, 11 * sc, c2, 1, seed + 1, 0.32);
+  sphere(o, x - (h2 - 0.5) * 18, 30 * sc, z + (h1 - 0.5) * 16, 10 * sc, 8.5 * sc, 10 * sc, c2, 1, seed + 3, 0.32);
+  sphere(o, x - (h1 - 0.5) * 10, 42 * sc, z - (h2 - 0.5) * 12, 9.5 * sc, 8 * sc, 9.5 * sc, c3, 1, seed + 2, 0.32);
 }
 function car(o, x, z, s, v) {
-  const col = [[0.36, 0.17, 0.15], [0.22, 0.27, 0.32], [0.42, 0.42, 0.36]][v];
-  box(o, x, 9, z, 29, 5.5, 12, col, 0);
-  box(o, x - 3, 17.5, z, 15, 3.6, 10.8, [0.08, 0.11, 0.15], 0);
-  box(o, x - 3, 22, z, 15.6, 1.2, 11.2, col.map(c => c * 1.15), 0);
-  for (const [wx, wz] of [[-19, -11.5], [19, -11.5], [-19, 11.5], [19, 11.5]]) box(o, x + wx, 5, z + wz, 5.5, 5, 2.2, [0.05, 0.05, 0.06], 0);
-  box(o, x + 29, 10, z - 7, 0.6, 1.6, 2.4, [0.75, 0.72, 0.55], 0); box(o, x + 29, 10, z + 7, 0.6, 1.6, 2.4, [0.75, 0.72, 0.55], 0);
-  if (s === 3) { box(o, x - 3, 24, z, 15, 1.4, 10.6, [0.9, 0.92, 0.97], 0); box(o, x + 20, 15, z, 8, 0.9, 11, [0.88, 0.9, 0.96], 0); box(o, x - 23, 15, z, 5, 0.9, 11, [0.88, 0.9, 0.96], 0); }
+  const col = [[0.36, 0.17, 0.15], [0.22, 0.27, 0.32], [0.42, 0.42, 0.36]][v], dk = col.map(c => c * 0.7), glass = [0.07, 0.1, 0.14], chrome = [0.5, 0.52, 0.55];
+  box(o, x, 8.5, z, 29, 4.5, 12, col, 0);                                       // Karosserie
+  box(o, x, 5, z, 29.6, 1.4, 12.4, dk, 0);                                      // Schweller
+  frustum(o, x - 3, 13, 21, z, -17, 15, -12, 9, 11.4, 9.6, glass, 0);           // Kabine mit schrägen Scheiben
+  box(o, x - 4.5, 21.5, z, 10.8, 0.8, 9.9, col.map(c => c * 1.12), 0);          // Dach
+  for (const px of [-15, -4.5, 6]) { box(o, x + px, 17, z - 10.4, 0.9, 4, 0.5, col, 0); box(o, x + px, 17, z + 10.4, 0.9, 4, 0.5, col, 0); }   // Säulen
+  for (const wx of [-19, 19]) for (const wz of [-10.8, 10.8]) { tube(o, x + wx, 5.6, z + wz - 2.3, x + wx, 5.6, z + wz + 2.3, 5.6, 5.6, [0.05, 0.05, 0.06], 0, 10, true); tube(o, x + wx, 5.6, z + wz + (wz > 0 ? 2.3 : -2.5), x + wx, 5.6, z + wz + (wz > 0 ? 2.5 : -2.3), 2.6, 2.6, chrome, 0, 8, true); }
+  box(o, x + 30, 6.5, z, 1, 1.6, 12.2, chrome, 0); box(o, x - 30, 6.5, z, 1, 1.6, 12.2, chrome, 0);                    // Stoßstangen
+  box(o, x + 29.4, 10.5, z - 8, 0.5, 1.5, 2.4, [0.8, 0.77, 0.6], 0); box(o, x + 29.4, 10.5, z + 8, 0.5, 1.5, 2.4, [0.8, 0.77, 0.6], 0);
+  box(o, x - 29.4, 10.5, z - 8.5, 0.5, 1.3, 2, [0.5, 0.1, 0.1], 0); box(o, x - 29.4, 10.5, z + 8.5, 0.5, 1.3, 2, [0.5, 0.1, 0.1], 0);
+  if (s === 3) { box(o, x - 4.5, 23.1, z, 10.4, 1.3, 9.5, [0.9, 0.92, 0.97], 0); box(o, x + 21, 13.6, z, 7.5, 0.8, 11.4, [0.88, 0.9, 0.96], 0); box(o, x - 25, 13.6, z, 4, 0.8, 11.4, [0.88, 0.9, 0.96], 0); }
+}
+// Strommast mit Leitungen zum nächsten Mast (Osten/Süden)
+function pole(o, x, z, east, south) {
+  const wood = [0.2, 0.16, 0.12];
+  tube(o, x, 0, z, x, 74, z, 2, 1.5, wood, 1, 6);
+  box(o, x, 66, z, 9, 0.9, 0.9, wood, 1); box(o, x, 60, z, 0.9, 0.9, 7, wood, 1);
+  for (const dx of [-8, 0, 8]) box(o, x + dx, 67.6, z, 0.8, 1, 0.8, [0.6, 0.62, 0.6], 1);
+  const wire = (tx, tz, off, perpX) => { let px = x + (perpX ? off : 0), pz = z + (perpX ? 0 : off), py = 67; for (let k = 1; k <= 5; k++) { const t = k / 5, nx = x + (tx - x) * t + (perpX ? off : 0), nz = z + (tz - z) * t + (perpX ? 0 : off), ny = 67 - Math.sin(t * Math.PI) * 9; tube(o, px, py, pz, nx, ny, nz, 0.32, 0.32, [0.06, 0.06, 0.07], 0, 3); px = nx; py = ny; pz = nz; } };
+  if (east) for (const off of [-7, 7]) wire(x + CS, z, off, false);
+  if (south) for (const off of [-7, 7]) wire(x, z + CS, off, true);
 }
 const WALL_H = 44;
 function buildChunk(c, r) {
   const s = W.season, pal = PAL[s], o = [], bo = [], co = [];
-  const type = c.bld ? c.bld.type : 'house', wc = hex(WALLCOL[type]), glass = [0.16, 0.24, 0.3];
+  const type = c.bld ? c.bld.type : 'house', wc = hex(WALLCOL[type]), wc2 = wc.map(v => v * 0.82), trim = wc.map(v => Math.min(1, v * 0.55 + 0.34)), plinth = [0.26, 0.26, 0.27], glass = [0.13, 0.2, 0.26];
   for (let ly = 0; ly < CH; ly++) for (let lx = 0; lx < CH; lx++) {
     const i = lx + ly * CH, ob = c.o[i]; if (!ob) continue;
     const x = lx * T + 16, z = ly * T + 16, seed = (c.cx * CH + lx) * 131 + (c.cy * CH + ly) * 17;
     switch (ob) {
-      case O_TREE: tree(o, x, z, s, pal, seed); break;
+      case O_TREE: tree(o, x, z, s, pal, seed, c.g[i] === G_FOREST ? hash2(seed, 9, 2) < 0.45 : hash2(seed, 9, 2) < 0.12); break;
       case O_ROCK: sphere(o, x, 4, z, 11 + hash2(seed, 1, 3) * 4, 7 + hash2(seed, 2, 3) * 3, 9 + hash2(seed, 3, 3) * 3, s === 3 ? [0.74, 0.77, 0.84] : [0.46, 0.47, 0.44], 0, seed, 0.35); break;
       case O_BUSH: case O_BUSH_E: {
         sphere(o, x, 6, z, 12, 8.5, 12, hex(pal.bush), 0, seed, 0.3);
@@ -235,17 +286,36 @@ function buildChunk(c, r) {
       case O_CRATE: box(o, x, 8, z, 10, 8, 10, [0.5, 0.36, 0.2], 0); box(o, x, 16.4, z, 10.6, 0.8, 10.6, [0.58, 0.43, 0.25], 0); box(o, x, 11, z + 10.2, 2, 2.4, 0.5, [0.85, 0.7, 0.3], 0); break;
       case O_CRATE_O: box(o, x, 5, z, 10, 5, 10, [0.26, 0.19, 0.12], 0); break;
       case O_CAR: case O_CAR_O: car(o, x + 16, z, s, (((lx + c.cx * 7 + c.cy * 3) % 3) + 3) % 3); break;
-      case O_WALL: box(bo, x, WALL_H / 2, z, 16, WALL_H / 2, 16, wc, 1); box(co, x, 3.5, z, 16, 3.5, 16, wc, 0); break;
-      case O_WINDOW:
-        box(bo, x, 7, z, 16, 7, 16, wc, 1); box(bo, x, 22, z, 15.2, 8, 15.2, glass, 1); box(bo, x, 37, z, 16, 7, 16, wc, 1);
-        box(co, x, 3.5, z, 16, 3.5, 16, wc, 0); break;
+      case O_WALL: case O_WINDOW: {
+        const bd = c.bld, corner = bd && (lx === bd.x - c.cx * CH || lx === bd.x + bd.w - 1 - c.cx * CH) && (ly === bd.y - c.cy * CH || ly === bd.y + bd.h - 1 - c.cy * CH);
+        box(bo, x, 2.2, z, 16.7, 2.2, 16.7, plinth, 1); box(co, x, 3.5, z, 16, 3.5, 16, wc, 0);
+        if (ob === O_WALL) { if (corner) box(bo, x, WALL_H / 2, z, 16.5, WALL_H / 2, 16.5, trim, 1); else { box(bo, x, WALL_H / 2, z, 16, WALL_H / 2, 16, wc, 1); for (let k = 0; k < 4; k++) box(bo, x, 9 + k * 9, z, 16.25, 0.5, 16.25, wc2, 1); } }
+        else {
+          box(bo, x, 8, z, 16, 8, 16, wc, 1); box(bo, x, 23, z, 15.3, 7, 15.3, glass, 1); box(bo, x, 37, z, 16, 7, 16, wc, 1);
+          box(bo, x, 15.6, z, 17, 0.9, 17, trim, 1); box(bo, x, 30.4, z, 16.6, 0.7, 16.6, trim, 1); box(bo, x, 23, z, 15.6, 7, 0.9, trim, 1); box(bo, x, 23, z, 0.9, 7, 15.6, trim, 1);
+        }
+        break;
+      }
     }
   }
   if (c.bld) {
-    const b = c.bld, x0 = (b.x - c.cx * CH) * T, z0 = (b.y - c.cy * CH) * T, rc = s === 3 ? [0.82, 0.85, 0.92] : hex(ROOFCOL[type]);
-    gable(bo, x0 - 6, z0 - 6, x0 + b.w * T + 6, z0 + b.h * T + 6, WALL_H, 20 + Math.min(b.w, b.h) * 1.6, rc, 1);
-    box(bo, x0 + b.w * T * 0.5, WALL_H + 0.6, z0 + b.h * T * 0.5, b.w * T * 0.5 + 6, 0.8, b.h * T * 0.5 + 6, rc.map(v => v * 0.6), 1);
+    const b = c.bld, lx0 = b.x - c.cx * CH, ly0 = b.y - c.cy * CH, x0 = lx0 * T, z0 = ly0 * T, rc = s === 3 ? [0.82, 0.85, 0.92] : hex(ROOFCOL[type]);
+    const rh = 20 + Math.min(b.w, b.h) * 1.6, X1 = x0 + b.w * T, Z1 = z0 + b.h * T, alongX = b.w >= b.h;
+    gable(bo, x0 - 7, z0 - 7, X1 + 7, Z1 + 7, WALL_H, rh, rc, 1);
+    box(bo, (x0 + X1) / 2, WALL_H + 0.6, (z0 + Z1) / 2, b.w * T * 0.5 + 7, 0.8, b.h * T * 0.5 + 7, rc.map(v => v * 0.6), 1);
+    if (alongX) box(bo, (x0 + X1) / 2, WALL_H + rh, (z0 + Z1) / 2, b.w * T * 0.5 + 7.5, 1, 1.6, rc.map(v => v * 0.7), 1); else box(bo, (x0 + X1) / 2, WALL_H + rh, (z0 + Z1) / 2, 1.6, 1, b.h * T * 0.5 + 7.5, rc.map(v => v * 0.7), 1);
+    if (type === 'house' || type === 'farm') { const cxm = alongX ? x0 + b.w * T * 0.28 : (x0 + X1) / 2 + 9, czm = alongX ? (z0 + Z1) / 2 + 9 : z0 + b.h * T * 0.28; box(bo, cxm, WALL_H + rh * 0.9, czm, 5, rh * 0.42, 5, [0.36, 0.2, 0.17], 1); box(bo, cxm, WALL_H + rh * 1.33, czm, 5.8, 1, 5.8, [0.2, 0.2, 0.2], 1); }
+    // Türen: Sturz über der Öffnung, Rahmen, offenes Türblatt, Stufe
+    for (let ly = ly0; ly < ly0 + b.h; ly++) for (let lx = lx0; lx < lx0 + b.w; lx++) {
+      const edgeX = lx === lx0 || lx === lx0 + b.w - 1, edgeY = ly === ly0 || ly === ly0 + b.h - 1;
+      if (!(edgeX || edgeY) || c.o[lx + ly * CH] === O_WALL || c.o[lx + ly * CH] === O_WINDOW) continue;
+      const x = lx * T + 16, z = ly * T + 16, horiz = edgeY && !edgeX || (edgeY && ly !== ly0 && ly !== ly0 + b.h - 1 ? false : edgeY);
+      box(bo, x, 40, z, 16, 4, 16, wc, 1); box(co, x, 0.6, z, 16, 0.6, 16, plinth, 0);
+      if (horiz) { box(bo, x - 15, 18, z, 1.2, 18, 16.4, trim, 1); box(bo, x + 15, 18, z, 1.2, 18, 16.4, trim, 1); const out = ly === ly0 ? -1 : 1; box(bo, x - 13, 18, z + out * 28, 1, 17.5, 13, [0.3, 0.2, 0.12], 0); box(o, x, 1, z + out * 20, 13, 1, 4, plinth, 0); }
+      else { box(bo, x, 18, z - 15, 16.4, 18, 1.2, trim, 1); box(bo, x, 18, z + 15, 16.4, 18, 1.2, trim, 1); const out = lx === lx0 ? -1 : 1; box(bo, x + out * 28, 18, z - 13, 13, 17.5, 1, [0.3, 0.2, 0.12], 0); box(o, x + out * 20, 1, z, 4, 1, 13, plinth, 0); }
+    }
   }
+  if (c.g[0] === G_ROAD && isTownChunk(c.cx, c.cy)) pole(o, 27, 27, isTownChunk(c.cx + 1, c.cy), isTownChunk(c.cx, c.cy + 1));
   setBuf(r, 'vbo', 'n', o); setBuf(r, 'bvbo', 'bn', bo); setBuf(r, 'cvbo', 'cn', co);
   if (!r.tex) { r.tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, r.tex); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR); }
   gl.bindTexture(gl.TEXTURE_2D, r.tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, c.canvas); gl.generateMipmap(gl.TEXTURE_2D);
@@ -277,12 +347,15 @@ function humanoid(x, y, ang, sc, body, skin, pants, hair, zombie, phase, moving,
   rel(1, E, flat ? 4 : 0, 0, 16 * hy, flat ? 8 : 4.3, 6.6 * hy, 6.2, body[0], body[1], body[2], sc);
   rel(1, E, flat ? 12 : 0.6, 0, 25.2 * hy, 3.9, 3.9 * (flat ? 0.8 : 1), 3.7, skin[0], skin[1], skin[2], sc);
   rel(1, E, flat ? 11 : -0.7, 0, 26.6 * hy, 3.5, 3 * (flat ? 0.8 : 1), 3.6, hair[0], hair[1], hair[2], sc, 0);
+  rel(1, E, sw * 3.6 + 1.6, -3, 1.3, 3.2, 1.4, 2, 0.08, 0.07, 0.07, sc, 0); rel(1, E, -sw * 3.6 + 1.6, 3, 1.3, 3.2, 1.4, 2, 0.08, 0.07, 0.07, sc, 0);     // Schuhe
   if (zombie) {
-    rel(1, E, 7 + sw, -6.4, 19 * hy, 6.2, 1.9, 1.9, skin[0], skin[1], skin[2], sc, 0);
-    rel(1, E, 7 - sw, 6.4, 18 * hy, 6.2, 1.9, 1.9, skin[0], skin[1], skin[2], sc, 0);
+    rel(1, E, 6 + sw, -6.4, 19 * hy, 5.6, 2, 2, body[0], body[1], body[2], sc, 0); rel(1, E, 12.5 + sw, -6.4, 19 * hy, 2.3, 1.7, 1.9, skin[0], skin[1], skin[2], sc, 0);
+    rel(1, E, 6 - sw, 6.4, 18 * hy, 5.6, 2, 2, body[0], body[1], body[2], sc, 0); rel(1, E, 12.5 - sw, 6.4, 18 * hy, 2.3, 1.7, 1.9, skin[0], skin[1], skin[2], sc, 0);
+    rel(1, E, 1.5, 1.5, 13 * hy, 3.6, 3, 4.6, 0.3, 0.07, 0.06, sc, 0);                                                                                       // Blutfleck
   } else {
     rel(1, E, 3.5 - sw * 2, -7, 16, 3.6, 5, 2, body[0], body[1], body[2], sc, 0);
     rel(1, E, 4.5 + sw * 2, 7, 16.5, 4.6, 4.2, 2, body[0], body[1], body[2], sc, 0);
+    rel(1, E, 6.5 - sw * 2.4, -7, 12.6, 1.7, 1.7, 1.7, skin[0], skin[1], skin[2], sc, 0); rel(1, E, 9 + sw * 2.4, 7, 15.4, 1.7, 1.7, 1.7, skin[0], skin[1], skin[2], sc, 0);
     rel(0, E, -5.4, 0, 16.5, 2.2, 5, 4.4, 0.33, 0.27, 0.18, sc, 0);       // Rucksack
   }
 }

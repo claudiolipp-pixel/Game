@@ -58,6 +58,7 @@ export function isVillage(cx, cy) {
   if (!villageCenter(Math.floor(cx / VR), Math.floor(cy / VR), vc)) return false;
   return Math.abs(cx - vc.x) <= 1 && Math.abs(cy - vc.y) <= 1;
 }
+export function isTownChunk(cx, cy) { const g = groundAt(cx * CH + 8, cy * CH + 8); return g === G_PAVE || (g !== G_WATER && isVillage(cx, cy)); }
 const BSIZE = { house: [7, 6], market: [11, 8], hardware: [10, 8], police: [9, 8], gas: [7, 5], military: [11, 9], farm: [7, 6] };
 const BCRATES = { house: 3, market: 6, hardware: 5, police: 4, gas: 3, military: 6, farm: 3 };
 
