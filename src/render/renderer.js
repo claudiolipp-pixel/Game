@@ -50,12 +50,13 @@ function drawSprite(img, x, y, ang, sz) {
 }
 
 // Automatische Qualitätsanpassung: bleibt die Bildrate länger unter ~48 FPS, erst Bodenglättung aus, dann Auflösung senken
-let slowT = 0;
+let slowT = 0, ema = 0.016;
 function autoQuality(fdt) {
   if (G.paused || G.mode !== 'play') { slowT = 0; return; }
-  slowT = fdt > 0.021 ? slowT + fdt : Math.max(0, slowT - fdt * 2);
+  ema = ema * 0.95 + fdt * 0.05;                       // geglättete Framezeit
+  slowT = ema > 0.0195 ? slowT + fdt : 0;
   if (slowT < 2.5) return;
-  slowT = 0;
+  slowT = 0; ema = 0.016;
   if (W.smoothGround) W.smoothGround = false;
   else if (settings.quality > 0.5) { settings.quality = settings.quality > 0.75 ? 0.75 : 0.5; saveSettings(); resize(); }
 }
