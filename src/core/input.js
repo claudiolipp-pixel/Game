@@ -1,5 +1,6 @@
 // Eingabe: Touch-Twin-Sticks, Tastatur/Maus, Gamepad. Liefert ein einheitliches input-Objekt.
 import { settings } from './save.js';
+import { G } from '../state.js';
 
 export const input = {
   mx: 0, my: 0,            // Bewegung -1..1
@@ -104,7 +105,7 @@ export function initInput(cv) {
 
 // Einmal pro Logik-Tick aufrufen. playerScreenX/Y für Maus-Zielen.
 export function pollInput(psx, psy) {
-  let mx = 0, my = 0, ax = 0, ay = 0, fire = false, sprint = input.sprintToggle, sneak = false, aimSet = false;
+  let mouseAim = false, mx = 0, my = 0, ax = 0, ay = 0, fire = false, sprint = input.sprintToggle, sneak = false, aimSet = false;
   if (input.L.on) { mx = input.L.x; my = input.L.y; }
   else {
     if (keys.a || keys.arrowleft) mx -= 1; if (keys.d || keys.arrowright) mx += 1;
@@ -118,7 +119,7 @@ export function pollInput(psx, psy) {
     if (m > 0.15) { ax = input.R.x / m; ay = input.R.y / m; aimSet = true; input.aimMag = m; fire = m > 0.4; }
   } else if (mouse.used && !input.touch) {
     const dx = mouse.x - psx, dy = mouse.y - psy, m = Math.hypot(dx, dy);
-    if (m > 4) { ax = dx / m; ay = dy / m; aimSet = true; }
+    if (m > 4) { ax = dx / m; ay = dy / m; aimSet = true; mouseAim = true; }
     fire = mouse.down;
   }
   // Gamepad
@@ -139,6 +140,10 @@ export function pollInput(psx, psy) {
       padPrev[j] = d;
     }
     break;
+  }
+  if (G.cam) {      // 3D-Kamera ist gedreht: Bildschirm-Richtungen in Welt-Richtungen umrechnen
+    const c = Math.cos(G.cam.yaw), s = Math.sin(G.cam.yaw); let t = c * mx + s * my; my = -s * mx + c * my; mx = t;
+    if (aimSet) { if (mouseAim) ay /= G.cam.sinP; t = c * ax + s * ay; ay = -s * ax + c * ay; ax = t; const m = Math.hypot(ax, ay) || 1; ax /= m; ay /= m; }
   }
   const mm = Math.hypot(mx, my);
   if (input.L.on && mm > 0.12 && mm < 0.5) sneak = true;

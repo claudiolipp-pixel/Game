@@ -57,9 +57,11 @@ export function newGame(seed, sv) {
   G.mode = 'play'; setPaused(false);
   endTutorial(); if (!sv) startTutorial();
   if (!sv && W.village) {
-    const dx = W.village.x - G.player.x, dy = W.village.y - G.player.y, a = Math.atan2(dy, dx) / Math.PI * 4;
-    const dir = ['Osten', 'Südosten', 'Süden', 'Südwesten', 'Westen', 'Nordwesten', 'Norden', 'Nordosten'][((Math.round(a) % 8) + 8) % 8];
-    toast('Ein kleines Dorf liegt ganz in der Nähe im ' + dir + ' – Häuser betreten und Kisten mit ✋ plündern.');
+    let dx = W.village.x - G.player.x, dy = W.village.y - G.player.y;
+    const names = G.cam ? ['rechts', 'unten rechts', 'unten', 'unten links', 'links', 'oben links', 'oben', 'oben rechts'] : ['im Osten', 'im Südosten', 'im Süden', 'im Südwesten', 'im Westen', 'im Nordwesten', 'im Norden', 'im Nordosten'];
+    if (G.cam) { const c = Math.cos(G.cam.yaw), s = Math.sin(G.cam.yaw), t = c * dx - s * dy; dy = s * dx + c * dy; dx = t; }
+    const dir = names[((Math.round(Math.atan2(dy, dx) / Math.PI * 4) % 8) + 8) % 8];
+    toast('Ein kleines Dorf liegt ganz in der Nähe – Richtung ' + dir + '. Häuser betreten und Kisten mit ✋ plündern.');
   }
 }
 

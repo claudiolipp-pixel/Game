@@ -14,7 +14,7 @@ const OPAQUE = new Uint8Array(16); OPAQUE[O_TREE] = OPAQUE[O_WALL] = 1;
 
 export const W = {
   seed: 1, chunks: new Map(), mods: {}, season: 0, frozen: false,
-  smoothGround: true, structs: new Map(), hit: null, pcx: 1e9, pcy: 1e9, free: [], dmg: new Map(),
+  smoothGround: true, mode3d: false, structs: new Map(), hit: null, pcx: 1e9, pcy: 1e9, free: [], dmg: new Map(),
 };
 export const key = (x, y) => (x + 32768) * 65536 + (y + 32768);
 
@@ -316,18 +316,20 @@ function renderChunk(c) {
       case O_WALL: case O_WINDOW: {
         const south = ly + 1 >= CH || !isWall(c.o[i + CH]);     // Südseite sichtbar → Fassade
         spr = south ? (ob === O_WINDOW ? ts.win[type] : ts.wall[type]) : ts.wallTop[type];
-        if (!south && ob === O_WINDOW) { x.drawImage(spr, px, py); x.fillStyle = '#4a6470'; x.fillRect(px + 10, py + 8, 12, 16); spr = null; }
+        if (!south && ob === O_WINDOW && !W.mode3d) { x.drawImage(spr, px, py); x.fillStyle = '#4a6470'; x.fillRect(px + 10, py + 8, 12, 16); spr = null; }
         break;
       }
-      case O_CAR: case O_CAR_O: x.drawImage(ts.car[(((tx * 7 + ty * 3) % 3) + 3) % 3], px, py - 8, 64, 40); cars.push(i); break;
+      case O_CAR: case O_CAR_O: if (!W.mode3d) x.drawImage(ts.car[(((tx * 7 + ty * 3) % 3) + 3) % 3], px, py - 8, 64, 40); cars.push(i); break;
       case O_CRATE: spr = ts.crate; break; case O_CRATE_O: spr = ts.crateO; break;
     }
+    if (spr && W.mode3d && ob !== O_STUMP && ob !== O_REED && ob !== O_CROP) spr = null;      // in 3D sind Objekte echte Modelle
     if (spr) { if (ob === O_BUSH || ob === O_BUSH_E) x.drawImage(spr, px - 3, py - 3, 38, 38); else x.drawImage(spr, px, py, T, T); }
     if (g === G_FLOOR && !isWall(ob) && ly > 0 && isWall(c.o[i - CH])) { x.fillStyle = 'rgba(0,0,0,0.3)'; x.fillRect(px, py, 32, 7); x.fillStyle = 'rgba(0,0,0,0.14)'; x.fillRect(px, py + 7, 32, 5); }   // Wandschatten innen
   }
   c.ver = s;
 }
 
+export function prepareChunk(c) { if (c.ver !== W.season || !c.canvas) renderChunk(c); }
 function visRange(v, out) {
   const s = v.scale, hw = v.w / 2 / s, hh = v.h / 2 / s;
   out[0] = Math.floor((v.camX - hw - 26) / CPX); out[1] = Math.floor((v.camX + hw + 26) / CPX);

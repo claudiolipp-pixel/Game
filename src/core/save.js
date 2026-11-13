@@ -1,6 +1,6 @@
 // Persistenz: Einstellungen, Highscores, Spielstand (localStorage).
 const K_SET = 'lw_settings', K_HS = 'lw_highscores', K_SAVE = 'lw_save';
-export const settings = { vol: 0.7, stickSize: 1, stickFixed: false, lefty: false, quality: 1, dayLen: 480, markTraps: false, tutorial: true };
+export const settings = { vol: 0.7, stickSize: 1, stickFixed: false, lefty: false, quality: 1, dayLen: 480, markTraps: false, tutorial: true, gfx3d: true };
 
 function read(k) { try { const s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
 function write(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (e) { return false; } }

@@ -66,6 +66,14 @@ stehen in den Einstellungen.
 - **Winter:** Mantel nähen (10 Stoff), Feuer und Dach nutzen, Vorräte anlegen. Seen sind zugefroren (begehbar).
 - **Bett:** schlafen überspringt die Nacht und speichert – nur wenn keine Zombies in der Nähe sind.
 
+## 3D-Darstellung
+
+Das Spiel rendert standardmäßig in echtem 3D über WebGL (ohne Bibliotheken, `src/render3d/renderer3d.js`):
+schräge Kamera, räumliche Gebäude, Bäume, Autos und Figuren, Sonnenlicht mit projizierten Schatten,
+Taschenlampe und Feuer als Lichtquellen, Nebel. Die Spiellogik ist unverändert 2D. Die Kamera ist um 45° gedreht;
+Steuerung und Minimap sind entsprechend mitgedreht. Betritt man ein Haus, werden Dach und Wände weggeschnitten.
+In den Einstellungen lässt sich „3D-Grafik“ abschalten (dann gilt die 2D-Ansicht, auch als automatischer Rückfall ohne WebGL).
+
 ## Architektur
 
 ```

@@ -62,6 +62,7 @@ export function showSettings(back) {
     <div class="row"><label>Grafikqualität</label><select id="s-q"><option value="1">Hoch</option><option value="0.75">Mittel</option><option value="0.5">Niedrig (schnell)</option></select></div>
     <div class="row"><label>Tageslänge (neues Spiel)</label><select id="s-day"><option value="240">4 Minuten</option><option value="480">8 Minuten</option><option value="720">12 Minuten</option><option value="960">16 Minuten</option></select></div>
     <div class="row"><label>Fallen markieren (du trittst nicht hinein)</label><input type="checkbox" id="s-mark" ${st.markTraps ? 'checked' : ''}></div>
+    <div class="row"><label>3D-Grafik (lädt das Spiel neu)</label><input type="checkbox" id="s-3d" ${st.gfx3d ? 'checked' : ''}></div>
     <div class="row"><label>Tutorial anzeigen</label><input type="checkbox" id="s-tut" ${st.tutorial ? 'checked' : ''}></div>
     <button class="btn pri" id="s-back">Fertig</button></div>`);
   const q = id => o.querySelector(id);
@@ -69,7 +70,9 @@ export function showSettings(back) {
   const apply = () => {
     st.vol = +q('#s-vol').value; st.stickSize = +q('#s-size').value; st.stickFixed = q('#s-fixed').checked; st.lefty = q('#s-lefty').checked;
     st.quality = +q('#s-q').value; st.dayLen = +q('#s-day').value; st.markTraps = q('#s-mark').checked; st.tutorial = q('#s-tut').checked;
+    const was = st.gfx3d; st.gfx3d = q('#s-3d').checked;
     saveSettings(); setVolume(st.vol); resize();
+    if (was !== st.gfx3d) { if (G.mode === 'play') saveGame(); location.reload(); }
   };
   o.querySelectorAll('input,select').forEach(e => e.onchange = apply);
   q('#s-back').onclick = () => { apply(); sfx('click'); back(); };

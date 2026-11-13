@@ -6,6 +6,7 @@ import { input, stickRadius } from '../core/input.js';
 import { SPR, HEAD } from './sprites.js';
 import { drawGround, drawRoofs, drawCanopies, drawShadows, T } from '../world/world.js';
 import { drawLighting } from './lighting.js';
+import { R3, init3d, resize3d, render3d, project, playerScreen3d } from '../render3d/renderer3d.js';
 import { drawWeather, drawTracks } from './weatherfx.js';
 import { ST } from '../building/structures.js';
 import { BUILD } from '../config.js';
@@ -18,7 +19,7 @@ export const view = { w: 1, h: 1, scale: 1, camX: 0, camY: 0, tx: 0, ty: 0, css:
 let canvas, ctx;
 
 export function initRenderer(cv) {
-  canvas = cv; ctx = cv.getContext('2d', { alpha: false });
+  canvas = cv; const use3d = init3d(cv); ctx = cv.getContext('2d', { alpha: use3d });
   resize();
   addEventListener('resize', resize);
   addEventListener('orientationchange', () => setTimeout(resize, 200));
@@ -28,12 +29,13 @@ export function resize() {
   canvas.width = Math.max(320, Math.round(innerWidth * dpr));
   canvas.height = Math.max(200, Math.round(innerHeight * dpr));
   view.w = canvas.width; view.h = canvas.height; view.css = canvas.width / innerWidth;
+  resize3d(canvas.width, canvas.height);
   view.scale = view.h / CFG.VIEW_H;
   if (view.w / view.scale > CFG.VIEW_H * 2.3) view.scale = view.w / (CFG.VIEW_H * 2.3);
   ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'medium';
 }
 // Bildschirmposition des Spielers in CSS-Pixeln (für Maus-Zielen)
-export function playerScreen(out) { out.x = (view.px * view.scale + view.tx) / view.css; out.y = (view.py * view.scale + view.ty) / view.css; }
+export function playerScreen(out) { if (R3.ok) { playerScreen3d(out, view.css); return; } out.x = (view.px * view.scale + view.tx) / view.css; out.y = (view.py * view.scale + view.ty) / view.css; }
 
 function drawSprite(img, x, y, ang, sz) {
   const s = view.scale, e = G.env, ga = ctx.globalAlpha;
@@ -62,6 +64,7 @@ function autoQuality(fdt) {
 }
 export function render(alpha, fdt) {
   autoQuality(fdt);
+  if (R3.ok) { render3dFrame(alpha, fdt); return; }
   const p = G.player;
   if (!p) { ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, view.w, view.h); return; }
   const s = view.scale;
@@ -150,6 +153,33 @@ export function render(alpha, fdt) {
   // schwebende Texte
   ctx.font = 'bold ' + Math.round(6 * s) + 'px monospace'; ctx.textAlign = 'center';
   for (let i = 0; i < texts.length; i++) { const t = texts[i]; if (!t.on) continue; ctx.globalAlpha = Math.min(1, t.life * 2); ctx.fillStyle = '#000'; ctx.fillText(t.txt, t.x * s + view.tx + 1, t.y * s + view.ty + 1); ctx.fillStyle = t.col; ctx.fillText(t.txt, t.x * s + view.tx, t.y * s + view.ty); }
+  ctx.globalAlpha = 1;
+  if (p.hurtT > 0) { ctx.fillStyle = 'rgba(180,0,0,' + (p.hurtT * 0.8) + ')'; ctx.fillRect(0, 0, view.w, view.h); }
+  drawSticks();
+}
+
+// 3D-Modus: Szene per WebGL, darüber ein transparentes 2D-Overlay (Wetter, Texte, Lebensbalken, Sticks)
+const pj = { x: 0, y: 0, z: 0 };
+function render3dFrame(alpha, fdt) {
+  const p = G.player;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  if (!p) { ctx.fillStyle = '#0b0d10'; ctx.fillRect(0, 0, view.w, view.h); return; }
+  render3d(alpha);
+  ctx.clearRect(0, 0, view.w, view.h);
+  view.px = 0; view.py = 0; view.scale = 1; playerScreen3d(pj, 1); view.tx = pj.x; view.ty = pj.y;
+  drawWeather(ctx, view, G.paused ? 0 : fdt);
+  const u = view.css;
+  // Lebensbalken (Brutes, beschädigte Bauwerke)
+  const zl = Z.list;
+  for (let i = 0; i < zl.length; i++) { const z = zl[i]; if (!z.alive || !z.def.heavy || z.hp >= z.maxHp) continue; project(z.x, z.y, 48, pj); ctx.fillStyle = '#000'; ctx.fillRect(pj.x - 16 * u, pj.y, 32 * u, 4 * u); ctx.fillStyle = '#c33'; ctx.fillRect(pj.x - 16 * u, pj.y, 32 * u * z.hp / z.maxHp, 4 * u); }
+  const sl = ST.list;
+  for (let i = 0; i < sl.length; i++) {
+    const b = sl[i]; if (Math.abs(b.x - p.x) > 700 || Math.abs(b.y - p.y) > 700) continue;
+    if (b.hp < b.maxHp * 0.98 && !b.def.trap) { project(b.x, b.y, 46, pj); ctx.fillStyle = '#000'; ctx.fillRect(pj.x - 14 * u, pj.y, 28 * u, 3 * u); ctx.fillStyle = b.hp > b.maxHp * 0.4 ? '#5c5' : '#c44'; ctx.fillRect(pj.x - 14 * u, pj.y, 28 * u * b.hp / b.maxHp, 3 * u); }
+    if (b.def.ammo && b.def.cap && b.ammo < 1 && (G.tick & 32)) { project(b.x, b.y, 54, pj); ctx.fillStyle = '#f44'; ctx.fillRect(pj.x - 2 * u, pj.y - 12 * u, 4 * u, 8 * u); ctx.fillRect(pj.x - 2 * u, pj.y - 2 * u, 4 * u, 3 * u); }
+  }
+  ctx.font = 'bold ' + Math.round(13 * u) + 'px monospace'; ctx.textAlign = 'center';
+  for (let i = 0; i < texts.length; i++) { const t = texts[i]; if (!t.on) continue; project(t.x, t.y + 14, 34, pj); ctx.globalAlpha = Math.min(1, t.life * 2); ctx.fillStyle = '#000'; ctx.fillText(t.txt, pj.x + u, pj.y + u); ctx.fillStyle = t.col; ctx.fillText(t.txt, pj.x, pj.y); }
   ctx.globalAlpha = 1;
   if (p.hurtT > 0) { ctx.fillStyle = 'rgba(180,0,0,' + (p.hurtT * 0.8) + ')'; ctx.fillRect(0, 0, view.w, view.h); }
   drawSticks();

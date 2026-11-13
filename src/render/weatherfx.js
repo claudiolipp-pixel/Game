@@ -47,7 +47,7 @@ export function drawWeather(ctx, v, dt) {
     ctx.globalAlpha = 1;
     if (bz) { ctx.fillStyle = 'rgba(225,232,240,0.3)'; ctx.fillRect(0, 0, W, H); }
   }
-  if (w === 'fog' || w === 'blizzard') {
+  if ((w === 'fog' || w === 'blizzard') && !G.cam) {
     if (!fog || fogW !== W) {
       fog = document.createElement('canvas'); fog.width = 64; fog.height = 64; fogW = W;
       const x = fog.getContext('2d'), g = x.createRadialGradient(32, 32, 6, 32, 32, 34);
