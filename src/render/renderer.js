@@ -49,11 +49,11 @@ function drawSprite(img, x, y, ang, sz) {
   ctx.drawImage(img, -16, -16, 32, 32);
 }
 
-// Automatische Qualitätsanpassung: bleibt die Bildrate länger unter ~37 FPS, erst Bodenglättung aus, dann Auflösung senken
+// Automatische Qualitätsanpassung: bleibt die Bildrate länger unter ~48 FPS, erst Bodenglättung aus, dann Auflösung senken
 let slowT = 0;
 function autoQuality(fdt) {
   if (G.paused || G.mode !== 'play') { slowT = 0; return; }
-  slowT = fdt > 0.027 ? slowT + fdt : Math.max(0, slowT - fdt * 2);
+  slowT = fdt > 0.021 ? slowT + fdt : Math.max(0, slowT - fdt * 2);
   if (slowT < 2.5) return;
   slowT = 0;
   if (W.smoothGround) W.smoothGround = false;
